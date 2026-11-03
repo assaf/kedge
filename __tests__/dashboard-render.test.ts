@@ -81,7 +81,7 @@ describe('KedgeView.render', () => {
     expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
   });
 
-  test('every bound shortcut shows on the control it belongs to', async () => {
+  test('all bound shortcuts sit on one line in the header', async () => {
     const { view, root } = makeView();
     const keys: Record<string, string> = {
       'kedge:open-dashboard': '⌘ ⇧ D',
@@ -95,23 +95,27 @@ describe('KedgeView.render', () => {
     await view.render();
 
     const headerMeta = root.children[0].all((e) => e.hasClass('kedge-meta'));
-    expect(headerMeta.map((m) => m.text)).toEqual(['Open dashboard: ⌘ ⇧ D']);
+    expect(headerMeta.map((m) => m.text)).toEqual([
+      'Open dashboard: ⌘ ⇧ D  ·  New letter: ⌘ ⇧ M  ·  New step: ⌘ ⇧ N  ·  New lesson: ⌘ ⇧ L',
+    ]);
 
-    const keyFor = (label: string) => {
-      const button = root.buttons().find((b) => b.text === label)!;
-      return button.all((e) => e.hasClass('kedge-key')).map((e) => e.text);
-    };
-    expect(keyFor('+ New step')).toEqual(['⌘ ⇧ N']);
-    expect(keyFor('+ New lesson')).toEqual(['⌘ ⇧ L']);
-    expect(keyFor('+ New letter')).toEqual(['⌘ ⇧ M']);
+    // buttons stay clean: no key hints inside them
+    expect(root.all((e) => e.hasClass('kedge-key'))).toEqual([]);
+    expect(root.buttonTexts()).toContain('+ New step');
+    expect(root.buttonTexts()).toContain('+ New lesson');
+    expect(root.buttonTexts()).toContain('+ New letter');
   });
 
-  test('no keys are printed when nothing is bound', async () => {
+  test('unbound commands are left out of the line', async () => {
     const { view, root } = makeView();
+    (view.plugin.app as any).hotkeyManager = {
+      printHotkeyForCommand: (id: string) =>
+        id === 'kedge:create-lesson' ? '⌘ ⇧ L' : '',
+    };
     await view.render();
 
-    expect(root.children[0].all((e) => e.hasClass('kedge-meta'))).toEqual([]);
-    expect(root.all((e) => e.hasClass('kedge-key'))).toEqual([]);
+    const headerMeta = root.children[0].all((e) => e.hasClass('kedge-meta'));
+    expect(headerMeta.map((m) => m.text)).toEqual(['New lesson: ⌘ ⇧ L']);
   });
 
   test('offers a New next step button when nothing is pending', async () => {
