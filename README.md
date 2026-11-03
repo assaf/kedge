@@ -1,10 +1,10 @@
 # Kedge
 
-An Obsidian plugin I built for myself. One next step at a time, a few lessons written down, letters to future me. It's all plain markdown in the vault, so nothing is trapped in here.
+An Obsidian plugin. Dashboard with one next step, lessons I've written down, letters to future me. Markdown in the vault.
 
-![Kedge dashboard](public/image.png)
+![Kedge](public/image.png)
 
-I start things badly. Not for lack of knowing what to do, that part is easy and there's always too much of it. So the page shows one step and a Done button and hides the rest.
+(I have ADHD. A list of forty tasks is worse than no list.)
 
 ## Install
 
@@ -12,27 +12,35 @@ I start things badly. Not for lack of knowing what to do, that part is easy and 
 pnpm install && pnpm build
 ```
 
-Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/kedge/`, then turn it on in Settings → Community Plugins.
+Copy `main.js`, `manifest.json`, `styles.css` into `<vault>/.obsidian/plugins/kedge/`. Enable it. That's the whole install.
 
-## Keys
+## What's in it
 
-⌘⇧D dashboard, ⌘⇧M letter, ⌘⇧N next step, ⌘⇧L lesson. All of those are buttons on the page too.
+Five commands: dashboard, dashboard in the sidebar, letter, next step, lesson. ⌘⇧D, ⌘⇧M, ⌘⇧N, ⌘⇧L for the four that have keys. The same things are buttons on the page.
 
-Obsidian can't pin a tab, so "Open dashboard in the sidebar" is how you keep it in view while you work.
+## Things that will annoy you
 
-## How it behaves
-
-Snoozed steps go grey at the bottom and only Do works on them. Do sets `status: working` and clears the snooze. It doesn't open a note; the note is in the file explorer where you left it.
+- Obsidian doesn't pin tabs. The sidebar command is the closest thing, and it survives a restart.
+- Do doesn't open the note, it marks the step as the one you're on (`status: working`) and clears any snooze. Open the note from the file explorer.
+- Snoozed steps drop to the bottom, grey, with Edit, Snooze and Done disabled. Only Do works.
+- A letter doesn't flip its own status when its date arrives. It just shows up. Some days you get one, some days nothing.
+- Drag handles are the ⠿ on the left of a card. Dragging writes an `order` field, which beats priority for sorting.
+- Lesson search is fuzzy whether you want it to be or not. `shbv` finds "Ship the boring version first".
 
 ![Next steps](public/steps.png)
 
-Letters show up on their date. Nothing gets rewritten when the page loads, so some days bring one and some bring none.
-
-Priorities are words on screen, 1 to 5 in the file. Dragging a card writes an `order` field.
-
-Lessons have a search box that's fuzzy enough to be useful: `shbv` finds "Ship the boring version first", and so does `boring`.
-
 ![Lessons](public/lessons.png)
+
+## Tests
+
+```bash
+pnpm test     # typecheck, then jest against a hand-written Obsidian mock
+pnpm smoke    # real Obsidian, throwaway vault, ~5s
+```
+
+`pnpm test` was green for a while while the plugin couldn't open at all. The mock has a `workspace.getLeaves` that the real API doesn't. That's the reason `pnpm smoke` exists: it boots a temp vault, runs the actual command, and checks the workspace really has a Kedge view in it.
+
+Nobody checks drag and drop or how the thing looks. That's on me and on you.
 
 ## Files
 
@@ -40,10 +48,4 @@ Lessons have a search box that's fuzzy enough to be useful: `shbv` finds "Ship t
 - `Kedge/Next-Steps/` keeps `id`, `title`, `status`, `priority`, `snooze_until`, `order`, `created_at`
 - `Kedge/Lessons/` keeps `id`, `claim`, `category`, `week`, `order`, `created_at`
 
-## Running it
-
-`pnpm test` typechecks first, then runs jest against a fake Obsidian I wrote by hand. It's fast. It also lies: the fake had a `workspace.getLeaves` that the real API doesn't, and the suite stayed green while the plugin was broken in the app.
-
-`pnpm smoke` does the real thing. Throwaway vault, real Obsidian, real commands, about five seconds, and it puts your vault back afterwards.
-
-What neither one checks is drag and drop, or how anything looks. That still needs eyes.
+Last touched 2026-11-03. Obsidian 1.15.0.
