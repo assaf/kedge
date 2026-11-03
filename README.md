@@ -1,95 +1,71 @@
-# Kedge — Obsidian plugin
+# Kedge
 
-Next best step · Letters to/from future self · Snoozable next steps · One-line lessons.
+An Obsidian plugin for getting the next thing done. It keeps one next step in front of you, takes lessons you've already learned and writes them down, and holds letters you write to yourself to read later. All of it is plain markdown in your vault.
 
 ![Kedge dashboard: the next best step, and a letter from past you](public/image.png)
+
+## Why this exists
+
+I have ADHD. Knowing what to do was never the problem; starting was. A list of forty tasks doesn't tell you which one is next, and it doesn't care that you're not in the mood. So the dashboard shows one step and a Done button, and everything else waits its turn.
+
+The other two parts point the same idea at different times. Lessons are things you already worked out, written down before they evaporate. Letters are notes you send forward, so future you remembers what this week actually felt like.
 
 ## Install
 
 ```bash
-cd kedge
 pnpm install
 pnpm build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` into your vault's plugins folder:
-
-```
-<vault>/.obsidian/plugins/kedge/
-```
-
-Then enable "Kedge" in Obsidian → Settings → Community Plugins → Installed.
+Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/kedge/`, then enable Kedge in Settings → Community Plugins.
 
 ## Commands
 
-| Command                                   | What it does                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------------ |
-| Open dashboard (`Cmd+Shift+D`)            | Opens the dashboard, reusing the existing Kedge leaf and re-rendering it       |
-| Open dashboard in the sidebar             | Puts the dashboard in the right sidebar, so it stays visible beside your notes |
-| Write letter to future me (`Cmd+Shift+M`) | Modal to write + seal a letter with a delivery date                            |
-| Create next step (`Cmd+Shift+N`)          | Modal: step title + priority, writes a pending note                            |
-| Create lesson (`Cmd+Shift+L`)             | Modal: one-line lesson + optional category                                     |
+| Command | What it does |
+| --- | --- |
+| Open dashboard (`Cmd+Shift+D`) | Opens it, reusing the tab if it's already open |
+| Open dashboard in the sidebar | Puts it in the right sidebar, so it stays visible while you work |
+| Write letter to future me (`Cmd+Shift+M`) | Title, the letter, and when it should come back |
+| Create next step (`Cmd+Shift+N`) | Title and priority |
+| Create lesson (`Cmd+Shift+L`) | One line, optional category |
 
-The dashboard carries the same actions as buttons: "+ New step", "+ New lesson",
-"Edit" on a step (title + priority), "Edit" / "Delete" on a lesson and on every
-letter, and "Reply to past me" on each arrived letter (the reply is appended to
-the letter note as a dated `## Reply` section).
+Every command is also a button on the dashboard, and the shortcuts are printed under the title there, so you can live without the keyboard if you want.
 
-Obsidian has no tab pinning. The way to keep the dashboard on screen is the
-sidebar: "Open dashboard in the sidebar" attaches it to the right-sidedock
-leaf, which survives restarts as part of the workspace layout. It sits beside
-whatever note you are editing instead of sharing the main area's tabs.
+Obsidian has no tab pinning. The sidebar is the next best thing: it stays open beside whatever note you're editing, and it comes back after a restart because Obsidian saves the layout.
 
-Priorities are picked in words — highest, high, medium, low, lowest — and
-stored as 1–5. Next steps and lessons can be reordered by dragging a card by
-its ⠿ grip; the order is written to each note's `order` field, and notes
-without one fall back to priority / newest-first.
+## Using it
 
-The Lessons section has a search box. Typing filters the list in place —
-fuzzy, so `boring` finds "Ship the boring version first" and `shbv` finds it
-too — best match first, with category matches ranked below claim matches.
-Clearing the box restores the full list; ordering by drag is only wired up
-while the list is unfiltered, since a filtered order has no meaning.
+Priorities are words, not numbers: highest, high, medium, low, lowest. They're stored as 1 to 5 in the note. Drag a card by its ⠿ handle to set your own order, which is saved as an `order` field. Cards without one fall back to priority, or for lessons, newest first.
+
+Edit and Delete sit on the card itself: a step's title and priority, a lesson's line and category. Deleting removes that note and nothing else.
+
+The lessons list has a search box that filters as you type. `boring` finds "Ship the boring version first", and so does `shbv`, with the best match first. Clearing the box brings the full list back.
 
 ![The lessons list with its fuzzy search field](public/lessons.png)
 
-Snoozed next steps drop to their own dimmed group at the bottom of the list
-and are not draggable. Only "Do" is enabled on them; Edit / Snooze / Done are
-shown greyed out and inert. A snooze whose date has passed counts as due
-again, so it rejoins the active list on its own.
+Snoozed steps drop into a grey group at the bottom of the list. Their Edit, Snooze and Done buttons are disabled, because a snoozed step isn't something you act on, it's something you parked. Do still works: it takes the step off snooze and marks it as the one you're on. When the snooze date passes, the step climbs back into the normal list on its own.
 
 ![Next steps: a working step with Do disabled, and a dimmed snoozed step](public/steps.png)
 
-"Do" never opens a tab — on a snoozed step or an active one it sets
-`status: working` (shown as "working on it") and clears `snooze_until`. The
-note itself is opened from the file explorer when you need it.
+Do never opens a note. It sets `status: working` and clears the snooze. The note is where it always was, in the file explorer.
 
 ## Letters to your future self
 
-"Write letter to future me" opens a modal with a title, the letter, and when
-it comes back: quick picks of 1 month / 6 months / 1 year, or an exact date.
-A line under the field previews the return date ("Will come back on 3 May
-2027") before you seal it.
+You get a title, the letter, and when it should come back. There are quick picks for one month, six months and a year, or you can set an exact date, and a line under the field tells you what you picked in words before you seal it.
 
-The dashboard then has two letter sections. **Scheduled letters** is a compact
-list — one line per letter, title only, truncated with an ellipsis when long,
-with Edit and Delete on the right; the return date and written date sit in the
-row's tooltip. Editing reopens the same letter, body included, and changing the
-date reschedules it. **From past you** holds the letters whose date has
-arrived, each with "Reply to past me" (the reply is appended to the letter note
-as a dated `## Reply` section).
+Scheduled letters are a compact list: one line each, title only, with Edit and Delete on the right. Hover a row for the return date and when you wrote it. Editing reopens the letter with its body, so you can fix a typo or move the date.
 
-Arrival is computed, never written: a `sealed` letter whose `seal_date` is
-today or earlier simply shows up. So on any given day you may see none, one,
-or several letters arrive, and the notes themselves are never rewritten just
-by opening the dashboard. The dashboard only counts as arrived; it does not
-flip the status.
+Arrived letters show up under "From past you" with Reply to past me, which appends a dated `## Reply` section to the letter note, plus Delete for when you're finished with it.
 
-## Data model (all stored as markdown notes in your vault)
+Opening the dashboard never rewrites your letters. A sealed letter whose date is today or earlier just shows up, so a day can bring one letter or none.
 
-- `Kedge/Letters/*.md` — frontmatter: `id`, `title`, `status` (sealed/delivered/opened), `seal_date`, `created_at`
-- `Kedge/Next-Steps/*.md` — frontmatter: `id`, `title`, `status` (pending/snoozed/done), `priority` (1–5), `snooze_until`, `order`, `created_at`
-- `Kedge/Lessons/*.md` — frontmatter: `id`, `claim`, `category`, `week`, `order`, `created_at`
+## Data model
+
+Everything is a markdown note you can edit by hand:
+
+- `Kedge/Letters/*.md` has `id`, `title`, `status` (sealed/delivered/opened), `seal_date`, `created_at`
+- `Kedge/Next-Steps/*.md` has `id`, `title`, `status` (pending/working/snoozed/done), `priority` (1 to 5), `snooze_until`, `order`, `created_at`
+- `Kedge/Lessons/*.md` has `id`, `claim`, `category`, `week`, `order`, `created_at`
 
 ## Develop
 
@@ -102,27 +78,12 @@ pnpm test           # typecheck + jest (mocked Obsidian)
 pnpm smoke          # live run in real Obsidian, scratch vault
 ```
 
-`pnpm test` is fast and offline, but it exercises a hand-written Obsidian mock.
-It cannot see whether Obsidian accepts an API call, whether a view appears, or
-what anything looks like — those failures shipped before.
+`pnpm test` runs the typecheck and then the jest suite. It's fast and offline, and it runs against a hand-written Obsidian mock, which means it can't tell you whether Obsidian accepts a call or whether anything appears on screen. Every bug of that kind in this repo got past a green suite.
 
-`pnpm smoke` closes that gap. It builds, creates a throwaway vault in
-`$TMPDIR`, copies the plugin in, switches Obsidian to it through the official
-`obsidian` CLI, and asserts:
+`pnpm smoke` covers that gap. It builds, makes a throwaway vault in `$TMPDIR`, installs the plugin into it, switches Obsidian over through the official `obsidian` CLI, and checks that the plugin loaded, its commands registered, `kedge:open-dashboard` ran, a `kedge-dashboard` view exists in the workspace, and `onload` created the three folders.
 
-- the plugin loads (restricted mode disabled for the scratch vault)
-- its commands register
-- `kedge:open-dashboard` executes
-- the workspace really contains a `kedge-dashboard` view
-- `onload` created `Kedge/{Letters,Next-Steps,Lessons}`
+It needs Obsidian running and the CLI on `PATH`. Takes about five seconds, and it puts the vault registry back on the way out, so your notes stay untouched. `--keep` leaves the throwaway vault behind if you want to see it.
 
-It needs Obsidian running and the CLI on `PATH` (`obsidian`), takes ~5 s, and
-restores the vault registry byte-for-byte on the way out — your notes are never
-touched. `--keep` leaves the scratch vault behind for inspection.
+What it can't check is drag and drop, or anything visual. Those need your eyes, or `obsidian dev:cdp`.
 
-What still needs your eyes: drag-and-drop gestures and anything visual (theme
-colours, layout). Those need CDP (`obsidian dev:cdp`) rather than the CLI.
-
-`package.json` scripts assume `esbuild`. Obsidian API types come from the
-`obsidian` npm package; the app it runs against may be newer (check
-`obsidian version`).
+Types come from the `obsidian` npm package, which lags the app itself. Run `obsidian version` when something looks off.
