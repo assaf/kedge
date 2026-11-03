@@ -911,6 +911,34 @@ export class KedgeView extends View {
     return head.createDiv({ cls: "kedge-actions" });
   }
 
+  /** "New letter: ⌘⇧L  ·  New step: ⌘⇧N", built from live bindings only. */
+  private shortcutHints(entries: Array<[string, string]>): string {
+    return entries
+      .map(([label, id]) => {
+        const keys = this.hotkeyLabel(id);
+        return keys ? `${label}: ${keys}` : "";
+      })
+      .filter(Boolean)
+      .join("  ·  ");
+  }
+
+  /**
+   * The command's effective binding, printed by Obsidian itself
+   * (`app.hotkeyManager.printHotkeyForCommand`). That manager is internal and
+   * absent from the public types, so a missing one yields no shortcut at all
+   * rather than a guess — the header used to print keys nothing was bound to.
+   */
+  private hotkeyLabel(commandId: string): string {
+    const manager = (this.plugin.app as any)?.hotkeyManager;
+    if (typeof manager?.printHotkeyForCommand !== "function") return "";
+    const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
+    try {
+      return String(manager.printHotkeyForCommand(fullId) ?? "").trim();
+    } catch {
+      return "";
+    }
+  }
+
   private async renderBody(): Promise<void> {
     const { app, settings } = this.plugin;
     this.container.empty();
@@ -918,10 +946,12 @@ export class KedgeView extends View {
     // header
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "Kedge" });
-    header.createEl("div", {
-      cls: "kedge-meta",
-      text: `Today: ${nowStr()}  ·  New letter: Ctrl/Cmd+Shift+L  ·  New step: Ctrl/Cmd+Shift+N`,
-    });
+    // only advertise shortcuts that are actually bound
+    const hints = this.shortcutHints([
+      ["New letter", "write-letter"],
+      ["New step", "create-next-step"],
+    ]);
+    if (hints) header.createDiv({ cls: "kedge-meta", text: hints });
 
     // ---- Next best step ----
     const steps = await loadNextSteps(app, settings.nextStepFolder);
@@ -1393,6 +1423,7 @@ export default class KedgePlugin extends Plugin {
     this.addCommand({
       id: "write-letter",
       name: "Write letter to future me",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
       callback: async () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       },
@@ -1401,6 +1432,7 @@ export default class KedgePlugin extends Plugin {
     this.addCommand({
       id: "create-next-step",
       name: "Create next step",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "N" }],
       callback: async () => {
         new NextStepModal(this.app, this, () => this.refreshDashboards()).open();
       },

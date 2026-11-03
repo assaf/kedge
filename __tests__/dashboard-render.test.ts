@@ -71,6 +71,27 @@ describe('KedgeView.render', () => {
     expect(texts).toContain('Reply to past me');
   });
 
+  test('the header carries no date and no invented shortcuts', async () => {
+    const { view, root } = makeView();
+    await view.render();
+
+    const heading = root.children[0].all((e) => e.tag === 'h2').map((e) => e.text);
+    expect(heading).toEqual(['Kedge']);
+    expect(root.all((e) => e.text.includes('Today:')).length).toBe(0);
+    expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
+  });
+
+  test('the header lists a shortcut only when one is bound', async () => {
+    const { view, root } = makeView();
+    (view.plugin.app as any).hotkeyManager = {
+      printHotkeyForCommand: (id: string) => (id === 'kedge:write-letter' ? '⌘ ⇧ L' : ''),
+    };
+    await view.render();
+
+    const meta = root.children[0].all((e) => e.hasClass('kedge-meta'));
+    expect(meta.map((m) => m.text)).toEqual(['New letter: ⌘ ⇧ L']);
+  });
+
   test('offers a New next step button when nothing is pending', async () => {
     const { view, root } = makeView([]);
     await view.render();

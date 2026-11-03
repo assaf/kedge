@@ -230,6 +230,13 @@ export class Notice {
   }
 }
 
+export class Platform {
+  static isMacOS = true;
+  static isWin = false;
+  static isLinux = false;
+  static isMobile = false;
+}
+
 export class MarkdownView {}
 export class Component {}
 export class ItemView extends View {}

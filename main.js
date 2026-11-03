@@ -721,15 +721,41 @@ var KedgeView = class extends import_obsidian.View {
     head.createEl("h2", { text: title });
     return head.createDiv({ cls: "kedge-actions" });
   }
+  /** "New letter: ⌘⇧L  ·  New step: ⌘⇧N", built from live bindings only. */
+  shortcutHints(entries) {
+    return entries.map(([label, id]) => {
+      const keys = this.hotkeyLabel(id);
+      return keys ? `${label}: ${keys}` : "";
+    }).filter(Boolean).join("  \xB7  ");
+  }
+  /**
+   * The command's effective binding, printed by Obsidian itself
+   * (`app.hotkeyManager.printHotkeyForCommand`). That manager is internal and
+   * absent from the public types, so a missing one yields no shortcut at all
+   * rather than a guess — the header used to print keys nothing was bound to.
+   */
+  hotkeyLabel(commandId) {
+    const manager = this.plugin.app?.hotkeyManager;
+    if (typeof manager?.printHotkeyForCommand !== "function")
+      return "";
+    const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
+    try {
+      return String(manager.printHotkeyForCommand(fullId) ?? "").trim();
+    } catch {
+      return "";
+    }
+  }
   async renderBody() {
     const { app, settings } = this.plugin;
     this.container.empty();
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "Kedge" });
-    header.createEl("div", {
-      cls: "kedge-meta",
-      text: `Today: ${nowStr()}  \xB7  New letter: Ctrl/Cmd+Shift+L  \xB7  New step: Ctrl/Cmd+Shift+N`
-    });
+    const hints = this.shortcutHints([
+      ["New letter", "write-letter"],
+      ["New step", "create-next-step"]
+    ]);
+    if (hints)
+      header.createDiv({ cls: "kedge-meta", text: hints });
     const steps = await loadNextSteps(app, settings.nextStepFolder);
     const pending = steps.filter((s) => s.status !== "done" && !isSnoozed(s));
     pending.sort(
@@ -1132,6 +1158,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "write-letter",
       name: "Write letter to future me",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
       callback: async () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       }
@@ -1139,6 +1166,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "create-next-step",
       name: "Create next step",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "N" }],
       callback: async () => {
         new NextStepModal(this.app, this, () => this.refreshDashboards()).open();
       }
