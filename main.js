@@ -776,7 +776,15 @@ var ChartroomView = class extends import_obsidian.View {
         meta.createEl("span", { text: `Written ${letter.createdAt}` });
         const actions = card.createDiv({ cls: "chartroom-actions" });
         const replyBtn = actions.createEl("button", { cls: "mod-clickable", text: "Reply to past me" });
+        const deleteBtn = actions.createEl("button", {
+          cls: "mod-clickable chartroom-danger",
+          text: "Delete"
+        });
         replyBtn.onclick = () => this.openReplyModal(letter);
+        deleteBtn.onclick = async () => {
+          await this.deleteLetter(letter);
+          await this.render();
+        };
       }
     } else {
       pastSection.createDiv({ cls: "chartroom-empty", text: "No letters have arrived yet." });
@@ -1115,6 +1123,13 @@ var ChartroomPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
+      id: "open-chartroom-sidebar",
+      name: "Open dashboard in the sidebar",
+      callback: async () => {
+        await this.activateDashboardInSidebar();
+      }
+    });
+    this.addCommand({
       id: "write-letter",
       name: "Write letter to future me",
       callback: async () => {
@@ -1165,6 +1180,25 @@ var ChartroomPlugin = class extends import_obsidian.Plugin {
 ${err.stack}` : String(err);
       new import_obsidian.Notice("Chartroom failed to open: " + msg);
       console.error("Chartroom activate failed:", err);
+    }
+  }
+  /**
+   * Puts the dashboard in the right sidebar, where it stays visible beside
+   * whatever note you are working in (Obsidian has no tab pinning, and a
+   * sidebar leaf is what survives as "always visible").
+   */
+  async activateDashboardInSidebar() {
+    try {
+      const leaf = this.app.workspace.getRightLeaf(false);
+      if (!leaf) {
+        new import_obsidian.Notice("Chartroom: no right sidebar to attach to");
+        return;
+      }
+      await leaf.setViewState({ type: VIEW_TYPE_CHARTROOM, state: {} });
+      this.app.workspace.revealLeaf(leaf);
+    } catch (err) {
+      new import_obsidian.Notice("Chartroom sidebar failed: " + err.message);
+      console.error("Chartroom sidebar failed:", err);
     }
   }
   async reloadDashboard() {

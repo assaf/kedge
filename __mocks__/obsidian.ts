@@ -184,10 +184,12 @@ export class WorkspaceLeaf {
 }
 
 export class Workspace {
+  rightLeaf: WorkspaceLeaf | null = null;
   constructor(public leaves: WorkspaceLeaf[] = []) {}
   getLeaves() { return this.leaves; }
   getLeavesOfType(viewType: string) { return this.leaves.filter(l => l.viewType === viewType); }
   getLeaf() { return this.leaves[0] ?? null; }
+  getRightLeaf(_split: boolean) { return this.rightLeaf ?? this.leaves[0] ?? null; }
   revealLeaf = jest.fn();
 }
 

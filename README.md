@@ -24,15 +24,21 @@ Then enable "Chartroom" in Obsidian → Settings → Community Plugins → Insta
 |---|---|
 | Open dashboard (`Cmd+Shift+M`) | Opens the dashboard in a tab, reusing the existing one |
 | Open dashboard in tab (`Cmd+Shift+T`) | Same, in a new tab |
+| Open dashboard in the sidebar | Puts the dashboard in the right sidebar, so it stays visible beside your notes |
 | Reload dashboard | Reopens the dashboard if the UI is stale |
 | Write letter to future me (`Cmd+Shift+L`) | Modal to write + seal a letter with a delivery date |
 | Create next step (`Cmd+Shift+N`) | Modal: step title + priority, writes a pending note |
 | Create lesson | Modal: one-line lesson + optional category |
 
 The dashboard carries the same actions as buttons: "+ New step", "+ New lesson",
-"Edit" on a step (title + priority), "Edit" / "Delete" on a lesson, and
-"Reply to past me" on each delivered letter (the reply is appended to the
-letter note as a dated `## Reply` section).
+"Edit" on a step (title + priority), "Edit" / "Delete" on a lesson and on every
+letter, and "Reply to past me" on each arrived letter (the reply is appended to
+the letter note as a dated `## Reply` section).
+
+Obsidian has no tab pinning. The way to keep the dashboard on screen is the
+sidebar: "Open dashboard in the sidebar" attaches it to the right-sidedock
+leaf, which survives restarts as part of the workspace layout. It sits beside
+whatever note you are editing instead of sharing the main area's tabs.
 
 Priorities are picked in words — highest, high, medium, low, lowest — and
 stored as 1–5. Next steps and lessons can be reordered by dragging a card by

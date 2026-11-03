@@ -571,3 +571,20 @@ describe('Lesson search', () => {
     expect(search.value).toBe('zzzznope');
   });
 });
+
+describe('Arrived letters', () => {
+  test('can be deleted once you are done with them', async () => {
+    const { view, root, deleted } = makeCtx();
+    await view.render();
+
+    const arrived = section(root, 'From past you');
+    expect(arrived.buttonTexts()).toEqual(['Reply to past me', 'Delete']);
+
+    click(arrived, 'Delete');
+    await flush();
+
+    expect(deleted).toEqual(['Chartroom/Letters/dear-future-me.md']);
+    expect(section(root, 'From past you').all((e) => e.text === 'Dear future me')).toHaveLength(0);
+    expect(section(root, 'From past you').all((e) => e.text === 'No letters have arrived yet.')).toHaveLength(1);
+  });
+});

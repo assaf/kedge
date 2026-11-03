@@ -188,15 +188,33 @@ async function switchTo(dir, timeoutMs = 120_000) {
   // listed as enabled but never loaded. Turning it off reloads the app.
   const restricted = tryObsidian(["plugins:restrict", "off"]);
   if (!restricted.ok) die(`could not disable restricted mode: ${restricted.err}`);
+
+  // ...and that reload answers the CLI before the workspace is rebuilt, so a
+  // command fired too early is accepted and does nothing. Wait for the tree.
+  const settled = await waitFor("workspace tree", timeoutMs, () => {
+    const tree = tryObsidian(["workspace"]);
+    return cliSucceeded(tree) && /^main$/m.test(tree.out);
+  });
+  if (settled !== true) die(`the workspace never settled (${settled.timedOut}).`);
 }
 
 async function checkViewInWorkspace(timeoutMs = 30_000) {
-  const found = await waitFor("workspace view", timeoutMs, () => {
+  const deadline = Date.now() + timeoutMs;
+  let retriedAt = 0;
+  while (Date.now() < deadline) {
     const tree = tryObsidian(["workspace"]);
-    return cliSucceeded(tree) && tree.out.includes("[chartroom-dashboard]") ? tree.out : false;
-  });
-  if (typeof found === "string") pass("dashboard view is in the workspace");
-  else fail("dashboard view is in the workspace", "no [chartroom-dashboard] tab appeared");
+    if (cliSucceeded(tree) && tree.out.includes("[chartroom-dashboard]")) {
+      pass("dashboard view is in the workspace");
+      return;
+    }
+    // one retry in case the first open landed mid-reload
+    if (Date.now() - retriedAt > 5_000) {
+      retriedAt = Date.now();
+      tryObsidian(["command", "id=chartroom:open-chartroom"]);
+    }
+    await sleep(500);
+  }
+  fail("dashboard view is in the workspace", "no [chartroom-dashboard] tab appeared");
 }
 
 async function checkFoldersCreated(timeoutMs = 30_000) {

@@ -31,6 +31,51 @@ describe('Plugin registration and command registration', () => {
     expect(tabCmd).toBeDefined();
     expect(tabCmd.hotkeys[0].key).toBe('T');
   });
+
+  test('registers the sidebar command', async () => {
+    const plugin = new ChartroomPlugin() as any;
+    plugin.app = {
+      vault: {
+        adapter: { exists: () => Promise.resolve(true), mkdir: () => Promise.resolve() },
+        getMarkdownFiles: () => [],
+      },
+      workspace: new Workspace([]),
+    };
+    plugin.settings = { ...DEFAULT_SETTINGS };
+    await (plugin as any).onload();
+
+    // Obsidian prefixes plugin command ids with the plugin id at runtime
+    expect(registeredCommands.map((c) => c.id)).toContain('open-chartroom-sidebar');
+  });
+});
+
+describe('activateDashboardInSidebar', () => {
+  test('puts the view in the right sidebar leaf', async () => {
+    const leaf = new WorkspaceLeaf();
+    leaf.setViewState = jest.fn(async () => {});
+    const workspace = new Workspace([]);
+    workspace.rightLeaf = leaf;
+
+    const plugin = new ChartroomPlugin() as any;
+    plugin.app = { workspace };
+    plugin.settings = { ...DEFAULT_SETTINGS };
+
+    await (plugin as any).activateDashboardInSidebar();
+    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_CHARTROOM, state: {} });
+    expect(workspace.revealLeaf).toHaveBeenCalledWith(leaf);
+  });
+
+  test('says so when there is no right sidebar', async () => {
+    const workspace: any = new Workspace([]);
+    workspace.getRightLeaf = () => null;
+
+    const plugin = new ChartroomPlugin() as any;
+    plugin.app = { workspace };
+    plugin.settings = { ...DEFAULT_SETTINGS };
+
+    await (plugin as any).activateDashboardInSidebar();
+    expect(notices.some((n) => n.includes('no right sidebar'))).toBe(true);
+  });
 });
 
 describe('activateDashboard', () => {
