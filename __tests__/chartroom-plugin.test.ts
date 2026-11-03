@@ -116,6 +116,8 @@ import {
   hasArrived,
   addMonths,
   formatDate,
+  filterLessons,
+  fuzzyScore,
   byOrder,
   PRIORITY_LABELS,
 } from '../main';
@@ -239,5 +241,40 @@ describe('Letters', () => {
   test('formatDate reads like a card badge', () => {
     expect(formatDate('2027-05-03')).toBe('3 May 2027');
     expect(formatDate('not a date')).toBe('not a date');
+  });
+});
+
+describe('Lesson search', () => {
+  const lessons = [
+    { claim: 'Ship the boring version first', category: 'product' },
+    { claim: 'Ask for the sale', category: 'sales' },
+    { claim: 'Slow mornings make better work', category: 'health' },
+  ];
+
+  test('a substring beats a scattered subsequence, and a miss is -1', () => {
+    const substring = fuzzyScore('Ship the boring version first', 'boring');
+    const scattered = fuzzyScore('Ship the boring version first', 'shbv');
+    expect(substring).toBeGreaterThan(scattered);
+    expect(scattered).toBeGreaterThan(0);
+    expect(fuzzyScore('Ship the boring version first', 'xyz')).toBe(-1);
+    expect(fuzzyScore('anything', '   ')).toBe(0); // blank query matches everything
+  });
+
+  test('a word start scores higher than a mid-word hit', () => {
+    expect(fuzzyScore('Ask for the sale', 'sale')).toBeGreaterThan(
+      fuzzyScore('Wholesale prices', 'sale')
+    );
+  });
+
+  test('filtering keeps matches and ranks them', () => {
+    expect(filterLessons(lessons, 'sale').map((l) => l.claim)).toEqual(['Ask for the sale']);
+    expect(filterLessons(lessons, 'zzz')).toEqual([]);
+    expect(filterLessons(lessons, '')).toHaveLength(3); // untouched order
+  });
+
+  test('a category match finds a lesson whose claim does not contain the word', () => {
+    expect(filterLessons(lessons, 'health').map((l) => l.claim)).toEqual([
+      'Slow mornings make better work',
+    ]);
   });
 });

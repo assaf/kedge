@@ -95,8 +95,9 @@ function section(root: El, title: string): El {
   return el;
 }
 
+/** Draggable cards anywhere inside a section (lessons nest under the search). */
 function cardsIn(sectionEl: El): El[] {
-  return sectionEl.children.filter((c) => c.hasClass('chartroom-draggable'));
+  return sectionEl.all((c) => c.hasClass('chartroom-draggable'));
 }
 
 /** Card text, ignoring the ⠿ drag grip. */
@@ -526,5 +527,47 @@ describe('Future letters', () => {
     expect(created[0].content).toContain(`seal_date: ${addMonths(1)}`);
     expect(created[0].content).toContain('status: sealed');
     expect(created[0].content).toContain('Did it work?');
+  });
+});
+
+describe('Lesson search', () => {
+  async function withTwoLessons() {
+    const ctx = makeCtx();
+    await ctx.view.render();
+    click(ctx.root, '+ New lesson');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Ask for the sale';
+    click(modal.contentEl, 'Create');
+    await flush();
+    return ctx;
+  }
+
+  test('typing narrows the list and clearing brings it back', async () => {
+    const { root } = await withTwoLessons();
+    expect(cardsIn(section(root, 'Lessons'))).toHaveLength(2);
+
+    const search = section(root, 'Lessons').all((e) => e.hasClass('chartroom-search'))[0];
+    search.value = 'sale';
+    search.dispatch('input');
+
+    expect(cardsIn(section(root, 'Lessons')).map(cardTitle)).toEqual(['Ask for the sale']);
+
+    search.value = '';
+    search.dispatch('input');
+    expect(cardsIn(section(root, 'Lessons'))).toHaveLength(2);
+  });
+
+  test('shows a message when nothing matches, and keeps the query in the box', async () => {
+    const { root } = await withTwoLessons();
+    const search = section(root, 'Lessons').all((e) => e.hasClass('chartroom-search'))[0];
+
+    search.value = 'zzzznope';
+    search.dispatch('input');
+
+    expect(cardsIn(section(root, 'Lessons'))).toHaveLength(0);
+    expect(
+      section(root, 'Lessons').all((e) => e.text === 'No lesson matches that.')
+    ).toHaveLength(1);
+    expect(search.value).toBe('zzzznope');
   });
 });

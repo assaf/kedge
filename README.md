@@ -39,6 +39,12 @@ stored as 1–5. Next steps and lessons can be reordered by dragging a card by
 its ⠿ grip; the order is written to each note's `order` field, and notes
 without one fall back to priority / newest-first.
 
+The Lessons section has a search box. Typing filters the list in place —
+fuzzy, so `boring` finds "Ship the boring version first" and `shbv` finds it
+too — best match first, with category matches ranked below claim matches.
+Clearing the box restores the full list; ordering by drag is only wired up
+while the list is unfiltered, since a filtered order has no meaning.
+
 Snoozed next steps drop to their own dimmed group at the bottom of the list
 and are not draggable. Only "Do" is enabled on them; Edit / Snooze / Done are
 shown greyed out and inert. A snooze whose date has passed counts as due

@@ -293,6 +293,58 @@ export function formatDate(iso: string): string {
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 
+/**
+ * Fuzzy match, no dependency: an exact substring scores highest, otherwise the
+ * query has to appear as an in-order subsequence. Returns -1 for no match, so
+ * a caller can filter on `score >= 0` while still sorting by it.
+ */
+export function fuzzyScore(text: string, query: string): number {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return 0;
+  const haystack = text.toLowerCase();
+
+  const direct = haystack.indexOf(needle);
+  if (direct !== -1) {
+    // early matches beat late ones; a word start beats mid-word
+    const wordStart = direct === 0 || /[\s\-_/]/.test(haystack[direct - 1]);
+    return 1000 - direct + (wordStart ? 100 : 0);
+  }
+
+  // in-order subsequence: reward runs of adjacent characters
+  let score = 0;
+  let from = 0;
+  let previous = -2;
+  for (const char of needle) {
+    const found = haystack.indexOf(char, from);
+    if (found === -1) return -1;
+    score += 10;
+    if (found === previous + 1) score += 5;
+    if (found === 0 || /[\s\-_/]/.test(haystack[found - 1])) score += 5;
+    score -= Math.min(found - from, 5);
+    previous = found;
+    from = found + 1;
+  }
+  return score;
+}
+
+/** Lessons matching `query`, best match first; blank query keeps the order. */
+export function filterLessons<T extends { claim: string; category: string }>(
+  lessons: T[],
+  query: string
+): T[] {
+  if (!query.trim()) return lessons;
+  return lessons
+    .map((lesson) => {
+      const claim = fuzzyScore(lesson.claim, query);
+      const category = fuzzyScore(lesson.category ?? "", query);
+      const score = Math.max(claim, category >= 0 ? category - 200 : -1);
+      return { lesson, score };
+    })
+    .filter((entry) => entry.score >= 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.lesson);
+}
+
 /** Manual order wins; notes without one keep the caller's fallback rule. */
 export function byOrder(a: { order: number | null }, b: { order: number | null }): number {
   if (a.order != null && b.order != null) return a.order - b.order;
@@ -815,6 +867,7 @@ export const VIEW_TYPE_CHARTROOM = "chartroom-dashboard";
 export class ChartroomView extends View {
   plugin: ChartroomPlugin;
   container!: HTMLElement;
+  lessonQuery = "";
 
   constructor(leaf: WorkspaceLeaf, plugin: ChartroomPlugin) {
     super(leaf);
@@ -1046,33 +1099,57 @@ export class ChartroomView extends View {
     const newLessonBtn = lessonActions.createEl("button", { cls: "mod-clickable", text: "+ New lesson" });
     newLessonBtn.onclick = () => this.openNewLessonModal();
 
-    if (lessons.length > 0) {
-      const ordered = this.sortLessons(lessons);
-      const dragCards: DraggableCard[] = [];
-      for (const lesson of ordered) {
-        const card = lessonSection.createDiv({ cls: "chartroom-card chartroom-draggable" });
-        dragCards.push({ id: lesson.id, el: card });
-        const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
-        head.createSpan({ cls: "chartroom-grip", text: "⠿" });
-        head.createSpan({ text: lesson.claim });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
-        if (lesson.category) meta.createEl("span", { text: lesson.category });
-        if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });
-        const actions = card.createDiv({ cls: "chartroom-actions" });
-        const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
-        const deleteBtn = actions.createEl("button", {
-          cls: "mod-clickable chartroom-danger",
-          text: "Delete",
-        });
-        editBtn.onclick = () => this.openEditLessonModal(lesson);
-        deleteBtn.onclick = async () => {
-          await this.deleteLesson(lesson);
-          await this.render();
-        };
-      }
+    const search = lessonSection.createEl("input", { cls: "chartroom-search" });
+    search.type = "search";
+    search.placeholder = "Search your lessons";
+    search.value = this.lessonQuery;
+    const lessonList = lessonSection.createDiv({ cls: "chartroom-lesson-list" });
+    this.renderLessons(lessonList, lessons);
+    search.addEventListener("input", () => {
+      this.lessonQuery = search.value;
+      this.renderLessons(lessonList, lessons);
+    });
+  }
+
+  /** Filters in place, so typing costs no focus and no full dashboard render. */
+  private renderLessons(container: HTMLElement, lessons: Lesson[]): void {
+    container.empty();
+    if (lessons.length === 0) {
+      container.createDiv({ cls: "chartroom-empty", text: "No lessons yet." });
+      return;
+    }
+
+    const matches = filterLessons(this.sortLessons(lessons), this.lessonQuery);
+    if (matches.length === 0) {
+      container.createDiv({ cls: "chartroom-empty", text: "No lesson matches that." });
+      return;
+    }
+
+    const dragCards: DraggableCard[] = [];
+    for (const lesson of matches) {
+      const card = container.createDiv({ cls: "chartroom-card chartroom-draggable" });
+      dragCards.push({ id: lesson.id, el: card });
+      const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
+      head.createSpan({ cls: "chartroom-grip", text: "⠿" });
+      head.createSpan({ text: lesson.claim });
+      const meta = card.createDiv({ cls: "chartroom-meta" });
+      if (lesson.category) meta.createEl("span", { text: lesson.category });
+      if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });
+      const actions = card.createDiv({ cls: "chartroom-actions" });
+      const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
+      const deleteBtn = actions.createEl("button", {
+        cls: "mod-clickable chartroom-danger",
+        text: "Delete",
+      });
+      editBtn.onclick = () => this.openEditLessonModal(lesson);
+      deleteBtn.onclick = async () => {
+        await this.deleteLesson(lesson);
+        await this.render();
+      };
+    }
+    // reordering only makes sense on the full, unfiltered list
+    if (!this.lessonQuery.trim()) {
       wireReorder(dragCards, (ids) => this.reorderLessons(ids));
-    } else {
-      lessonSection.createDiv({ cls: "chartroom-empty", text: "No lessons yet." });
     }
   }
 

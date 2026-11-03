@@ -29,7 +29,9 @@ __export(main_exports, {
   applyOrder: () => applyOrder,
   byOrder: () => byOrder,
   default: () => ChartroomPlugin,
+  filterLessons: () => filterLessons,
   formatDate: () => formatDate,
+  fuzzyScore: () => fuzzyScore,
   hasArrived: () => hasArrived,
   idFromTitle: () => idFromTitle,
   isSnoozed: () => isSnoozed,
@@ -255,6 +257,44 @@ function formatDate(iso) {
     return iso;
   const [, year, month, day] = match;
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+}
+function fuzzyScore(text, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle)
+    return 0;
+  const haystack = text.toLowerCase();
+  const direct = haystack.indexOf(needle);
+  if (direct !== -1) {
+    const wordStart = direct === 0 || /[\s\-_/]/.test(haystack[direct - 1]);
+    return 1e3 - direct + (wordStart ? 100 : 0);
+  }
+  let score = 0;
+  let from = 0;
+  let previous = -2;
+  for (const char of needle) {
+    const found = haystack.indexOf(char, from);
+    if (found === -1)
+      return -1;
+    score += 10;
+    if (found === previous + 1)
+      score += 5;
+    if (found === 0 || /[\s\-_/]/.test(haystack[found - 1]))
+      score += 5;
+    score -= Math.min(found - from, 5);
+    previous = found;
+    from = found + 1;
+  }
+  return score;
+}
+function filterLessons(lessons, query) {
+  if (!query.trim())
+    return lessons;
+  return lessons.map((lesson) => {
+    const claim = fuzzyScore(lesson.claim, query);
+    const category = fuzzyScore(lesson.category ?? "", query);
+    const score = Math.max(claim, category >= 0 ? category - 200 : -1);
+    return { lesson, score };
+  }).filter((entry) => entry.score >= 0).sort((a, b) => b.score - a.score).map((entry) => entry.lesson);
 }
 function byOrder(a, b) {
   if (a.order != null && b.order != null)
@@ -647,6 +687,7 @@ var VIEW_TYPE_CHARTROOM = "chartroom-dashboard";
 var ChartroomView = class extends import_obsidian.View {
   constructor(leaf, plugin) {
     super(leaf);
+    this.lessonQuery = "";
     this.plugin = plugin;
   }
   getViewType() {
@@ -844,35 +885,55 @@ var ChartroomView = class extends import_obsidian.View {
     const lessonActions = this.sectionHead(lessonSection, "Lessons");
     const newLessonBtn = lessonActions.createEl("button", { cls: "mod-clickable", text: "+ New lesson" });
     newLessonBtn.onclick = () => this.openNewLessonModal();
-    if (lessons.length > 0) {
-      const ordered = this.sortLessons(lessons);
-      const dragCards = [];
-      for (const lesson of ordered) {
-        const card = lessonSection.createDiv({ cls: "chartroom-card chartroom-draggable" });
-        dragCards.push({ id: lesson.id, el: card });
-        const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
-        head.createSpan({ cls: "chartroom-grip", text: "\u283F" });
-        head.createSpan({ text: lesson.claim });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
-        if (lesson.category)
-          meta.createEl("span", { text: lesson.category });
-        if (lesson.week)
-          meta.createEl("span", { text: ` \xB7 ${lesson.week}` });
-        const actions = card.createDiv({ cls: "chartroom-actions" });
-        const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
-        const deleteBtn = actions.createEl("button", {
-          cls: "mod-clickable chartroom-danger",
-          text: "Delete"
-        });
-        editBtn.onclick = () => this.openEditLessonModal(lesson);
-        deleteBtn.onclick = async () => {
-          await this.deleteLesson(lesson);
-          await this.render();
-        };
-      }
+    const search = lessonSection.createEl("input", { cls: "chartroom-search" });
+    search.type = "search";
+    search.placeholder = "Search your lessons";
+    search.value = this.lessonQuery;
+    const lessonList = lessonSection.createDiv({ cls: "chartroom-lesson-list" });
+    this.renderLessons(lessonList, lessons);
+    search.addEventListener("input", () => {
+      this.lessonQuery = search.value;
+      this.renderLessons(lessonList, lessons);
+    });
+  }
+  /** Filters in place, so typing costs no focus and no full dashboard render. */
+  renderLessons(container, lessons) {
+    container.empty();
+    if (lessons.length === 0) {
+      container.createDiv({ cls: "chartroom-empty", text: "No lessons yet." });
+      return;
+    }
+    const matches = filterLessons(this.sortLessons(lessons), this.lessonQuery);
+    if (matches.length === 0) {
+      container.createDiv({ cls: "chartroom-empty", text: "No lesson matches that." });
+      return;
+    }
+    const dragCards = [];
+    for (const lesson of matches) {
+      const card = container.createDiv({ cls: "chartroom-card chartroom-draggable" });
+      dragCards.push({ id: lesson.id, el: card });
+      const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
+      head.createSpan({ cls: "chartroom-grip", text: "\u283F" });
+      head.createSpan({ text: lesson.claim });
+      const meta = card.createDiv({ cls: "chartroom-meta" });
+      if (lesson.category)
+        meta.createEl("span", { text: lesson.category });
+      if (lesson.week)
+        meta.createEl("span", { text: ` \xB7 ${lesson.week}` });
+      const actions = card.createDiv({ cls: "chartroom-actions" });
+      const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
+      const deleteBtn = actions.createEl("button", {
+        cls: "mod-clickable chartroom-danger",
+        text: "Delete"
+      });
+      editBtn.onclick = () => this.openEditLessonModal(lesson);
+      deleteBtn.onclick = async () => {
+        await this.deleteLesson(lesson);
+        await this.render();
+      };
+    }
+    if (!this.lessonQuery.trim()) {
       wireReorder(dragCards, (ids) => this.reorderLessons(ids));
-    } else {
-      lessonSection.createDiv({ cls: "chartroom-empty", text: "No lessons yet." });
     }
   }
   // ---- modal launchers -------------------------------------------------
