@@ -1,20 +1,20 @@
-import { ChartroomView, DEFAULT_SETTINGS } from '../main';
+import { KedgeView, DEFAULT_SETTINGS } from '../main';
 import { notices, El } from 'obsidian';
 
 function makeVault(seed?: any[]) {
   const files: any[] = seed ?? [
     {
-      path: 'Chartroom/Next-Steps/call-the-dentist.md',
+      path: 'Kedge/Next-Steps/call-the-dentist.md',
       basename: 'call-the-dentist',
       content: '---\nid: call-the-dentist\ntitle: Call the dentist\nstatus: pending\npriority: 1\ncreated_at: 2026-11-01\n---\n',
     },
     {
-      path: 'Chartroom/Letters/dear-future-me.md',
+      path: 'Kedge/Letters/dear-future-me.md',
       basename: 'dear-future-me',
       content: '---\nid: dear-future-me\ntitle: Dear future me\nstatus: delivered\nseal_date: 2026-10-01\ncreated_at: 2026-04-01\n---\nSleep more.',
     },
     {
-      path: 'Chartroom/Lessons/ship-it.md',
+      path: 'Kedge/Lessons/ship-it.md',
       basename: 'ship-it',
       content: '---\nid: ship-it\nclaim: Ship the boring version first\ncategory: product\nweek: 2026-10-20\ncreated_at: 2026-10-20\n---\n',
     },
@@ -47,7 +47,7 @@ function makeView(seed?: any[]) {
     app: { vault, workspace: { getLeavesOfType: () => [], getLeaf: () => null } },
     settings: { ...DEFAULT_SETTINGS },
   };
-  const view: any = new ChartroomView({} as any, plugin);
+  const view: any = new KedgeView({} as any, plugin);
   const root = new El('div');
   view.container = root;
   return { view, root, modified, deleted };
@@ -57,7 +57,7 @@ beforeEach(() => {
   notices.length = 0;
 });
 
-describe('ChartroomView.render', () => {
+describe('KedgeView.render', () => {
   test('renders the dashboard with create/edit/reply actions', async () => {
     const { view, root } = makeView();
     await view.render();
@@ -96,7 +96,7 @@ describe('ChartroomView.render', () => {
     expect(doneBtns.length).toBeGreaterThan(0);
     await doneBtns[0].onclick();
 
-    expect(modified[0].path).toBe('Chartroom/Next-Steps/call-the-dentist.md');
+    expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
     expect(modified[0].content).toContain('status: done');
     expect(modified[0].content).toContain('priority: 1');
 

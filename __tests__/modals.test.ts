@@ -1,4 +1,4 @@
-import { ChartroomView, DEFAULT_SETTINGS, nowStr, addMonths } from '../main';
+import { KedgeView, DEFAULT_SETTINGS, nowStr, addMonths } from '../main';
 import { TFile, El, notices, openedModals } from 'obsidian';
 
 /** Lets the fire-and-forget `void this.save()` handlers finish: every vault
@@ -25,12 +25,12 @@ const LESSON = '---\nid: ship-it\nclaim: Ship the boring version first\ncategory
 
 function makeCtx() {
   const store = [
-    noteFile('Chartroom/Next-Steps/call-the-dentist.md', STEP),
-    noteFile('Chartroom/Next-Steps/renew-passport.md', STEP2),
-    noteFile('Chartroom/Next-Steps/file-taxes.md', STEP_SNOOZED),
-    noteFile('Chartroom/Letters/dear-future-me.md', LETTER),
-    noteFile('Chartroom/Letters/dear-me-in-a-year.md', LETTER_LATER),
-    noteFile('Chartroom/Lessons/ship-it.md', LESSON),
+    noteFile('Kedge/Next-Steps/call-the-dentist.md', STEP),
+    noteFile('Kedge/Next-Steps/renew-passport.md', STEP2),
+    noteFile('Kedge/Next-Steps/file-taxes.md', STEP_SNOOZED),
+    noteFile('Kedge/Letters/dear-future-me.md', LETTER),
+    noteFile('Kedge/Letters/dear-me-in-a-year.md', LETTER_LATER),
+    noteFile('Kedge/Lessons/ship-it.md', LESSON),
   ];
   const created: Array<{ path: string; content: string }> = [];
   const modified: Array<{ path: string; content: string }> = [];
@@ -70,7 +70,7 @@ function makeCtx() {
     app: { vault, workspace: { getLeavesOfType: () => [], getLeaf: () => leaf } },
     settings: { ...DEFAULT_SETTINGS },
   };
-  const view: any = new ChartroomView({} as any, plugin);
+  const view: any = new KedgeView({} as any, plugin);
   const root = new El('div');
   view.container = root;
   return { view, root, created, modified, deleted, opened };
@@ -90,19 +90,19 @@ function click(root: El, text: string): void {
 function section(root: El, title: string): El {
   const heading = root.all((e) => e.tag === 'h2' && e.text === title)[0];
   let el = heading?.parent ?? null;
-  while (el && !el.hasClass('chartroom-section')) el = el.parent;
+  while (el && !el.hasClass('kedge-section')) el = el.parent;
   if (!el) throw new Error(`no section "${title}"`);
   return el;
 }
 
 /** Draggable cards anywhere inside a section (lessons nest under the search). */
 function cardsIn(sectionEl: El): El[] {
-  return sectionEl.all((c) => c.hasClass('chartroom-draggable'));
+  return sectionEl.all((c) => c.hasClass('kedge-draggable'));
 }
 
 /** Card text, ignoring the ⠿ drag grip. */
 function cardTitle(card: El): string {
-  const title = card.all((e) => e.hasClass('chartroom-card-title'))[0];
+  const title = card.all((e) => e.hasClass('kedge-card-title'))[0];
   if (!title) return '';
   const span = title.all((e) => e.tag === 'span' && e.text !== '' && e.text !== '⠿')[0];
   return span ? span.text : title.text;
@@ -125,8 +125,8 @@ describe('New next step', () => {
 
     // the field is a real full-width input, not a cramped Setting control
     const input = modal.contentEl.ofTag('input')[0];
-    expect(input.cls).toContain('chartroom-input');
-    expect(modal.modalEl.cls).toContain('chartroom-modal');
+    expect(input.cls).toContain('kedge-input');
+    expect(modal.modalEl.cls).toContain('kedge-modal');
 
     modal.contentEl.ofTag('input')[0].value = 'Call the accountant';
     click(modal.contentEl, 'highest');
@@ -134,7 +134,7 @@ describe('New next step', () => {
     await flush();
 
     expect(created).toHaveLength(1);
-    expect(created[0].path).toBe('Chartroom/Next-Steps/call-the-accountant.md');
+    expect(created[0].path).toBe('Kedge/Next-Steps/call-the-accountant.md');
     expect(created[0].content).toContain('status: pending');
     expect(created[0].content).toContain('priority: 1');
     expect(modal.closed).toBe(true);
@@ -151,7 +151,7 @@ describe('New next step', () => {
     await flush();
 
     expect(modified).toHaveLength(0);
-    expect(created[0].path).toBe('Chartroom/Next-Steps/call-the-dentist-2.md');
+    expect(created[0].path).toBe('Kedge/Next-Steps/call-the-dentist-2.md');
   });
 
   test('refuses to create a step without a title', async () => {
@@ -185,7 +185,7 @@ describe('Reply to past me', () => {
     await flush();
 
     expect(modified).toHaveLength(1);
-    expect(modified[0].path).toBe('Chartroom/Letters/dear-future-me.md');
+    expect(modified[0].path).toBe('Kedge/Letters/dear-future-me.md');
     expect(modified[0].content.startsWith(LETTER)).toBe(true);
     expect(modified[0].content).toContain(`## Reply ${nowStr()}`);
     expect(modified[0].content).toContain('Sleeping more now.');
@@ -217,7 +217,7 @@ describe('Lessons', () => {
     await flush();
 
     expect(created).toHaveLength(1);
-    expect(created[0].path).toBe('Chartroom/Lessons/ask-for-the-sale.md');
+    expect(created[0].path).toBe('Kedge/Lessons/ask-for-the-sale.md');
     expect(created[0].content).toContain('claim: Ask for the sale');
     expect(created[0].content).toContain('category: sales');
   });
@@ -237,7 +237,7 @@ describe('Lessons', () => {
     await flush();
 
     expect(modified).toHaveLength(1);
-    expect(modified[0].path).toBe('Chartroom/Lessons/ship-it.md');
+    expect(modified[0].path).toBe('Kedge/Lessons/ship-it.md');
     expect(modified[0].content).toContain('id: ship-it');
     expect(modified[0].content).toContain('claim: Ship the smallest thing first');
     expect(modified[0].content).toContain('week: 2026-10-20');
@@ -251,7 +251,7 @@ describe('Lessons', () => {
     click(section(root, 'Lessons'), 'Delete');
     await flush();
 
-    expect(deleted).toEqual(['Chartroom/Lessons/ship-it.md']);
+    expect(deleted).toEqual(['Kedge/Lessons/ship-it.md']);
     expect(root.all((e) => e.text === 'Ship the boring version first')).toEqual([]);
   });
 });
@@ -274,7 +274,7 @@ describe('Editing and reordering next steps', () => {
     click(modal.contentEl, 'Save');
     await flush();
 
-    expect(modified[0].path).toBe('Chartroom/Next-Steps/call-the-dentist.md');
+    expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
     expect(modified[0].content).toContain('id: call-the-dentist');
     expect(modified[0].content).toContain('title: Call the dentist back');
     expect(modified[0].content).toContain('priority: 4'); // "low"
@@ -289,7 +289,7 @@ describe('Editing and reordering next steps', () => {
     click(root, '+ New step');
     const modal = lastModal();
     const labels = modal.contentEl
-      .all((e) => e.hasClass('chartroom-segment'))
+      .all((e) => e.hasClass('kedge-segment'))
       .map((o) => o.text);
     expect(labels).toEqual(['highest', 'high', 'medium', 'low', 'lowest']);
 
@@ -316,8 +316,8 @@ describe('Editing and reordering next steps', () => {
 
     const orderWrites = modified.map((m) => `${m.path} -> ${/order: (\d+)/.exec(m.content)?.[1]}`);
     expect(orderWrites).toEqual([
-      'Chartroom/Next-Steps/renew-passport.md -> 1',
-      'Chartroom/Next-Steps/call-the-dentist.md -> 2',
+      'Kedge/Next-Steps/renew-passport.md -> 1',
+      'Kedge/Next-Steps/call-the-dentist.md -> 2',
     ]);
 
     const after = cardsIn(section(root, 'Next steps'));
@@ -359,10 +359,10 @@ describe('Reordering lessons', () => {
     two[0].dispatch('drop', { preventDefault() {}, dataTransfer: { getData: () => '' } });
     await flush();
 
-    const lessonWrites = modified.filter((m) => m.path.startsWith('Chartroom/Lessons/'));
+    const lessonWrites = modified.filter((m) => m.path.startsWith('Kedge/Lessons/'));
     expect(lessonWrites.map((m) => `${m.path} -> ${/order: (\d+)/.exec(m.content)?.[1]}`)).toEqual([
-      'Chartroom/Lessons/ship-it.md -> 1',
-      'Chartroom/Lessons/ask-for-the-sale.md -> 2',
+      'Kedge/Lessons/ship-it.md -> 1',
+      'Kedge/Lessons/ask-for-the-sale.md -> 2',
     ]);
     expect(cardsIn(section(root, 'Lessons')).map(cardTitle)).toEqual([
       'Ship the boring version first',
@@ -377,19 +377,19 @@ describe('Snoozed next steps', () => {
     await view.render();
 
     const listEl = section(root, 'Next steps');
-    const subhead = listEl.children.find((c) => c.hasClass('chartroom-subhead'));
+    const subhead = listEl.children.find((c) => c.hasClass('kedge-subhead'));
     expect(subhead?.text).toBe('Snoozed');
 
-    const snoozed = listEl.children.filter((c) => c.hasClass('chartroom-snoozed'));
+    const snoozed = listEl.children.filter((c) => c.hasClass('kedge-snoozed'));
     expect(snoozed).toHaveLength(1);
     expect(cardTitle(snoozed[0])).toBe('File taxes');
     // Do stays usable; the rest are visible but disabled
     expect(snoozed[0].buttonTexts()).toEqual(['Do', 'Edit', 'Snooze', 'Done']);
     expect(snoozed[0].buttons().map((b) => b.disabled)).toEqual([false, true, true, true]);
-    expect(snoozed[0].hasClass('chartroom-draggable')).toBe(false); // not reorderable
+    expect(snoozed[0].hasClass('kedge-draggable')).toBe(false); // not reorderable
 
     // the group really is below the active cards
-    const activeIndex = listEl.children.findIndex((c) => c.hasClass('chartroom-draggable'));
+    const activeIndex = listEl.children.findIndex((c) => c.hasClass('kedge-draggable'));
     const snoozedIndex = listEl.children.indexOf(snoozed[0]);
     expect(snoozedIndex).toBeGreaterThan(activeIndex);
 
@@ -401,18 +401,18 @@ describe('Snoozed next steps', () => {
     const { view, root, modified, opened } = makeCtx();
     await view.render();
 
-    const snoozed = section(root, 'Next steps').children.find((c) => c.hasClass('chartroom-snoozed'))!;
+    const snoozed = section(root, 'Next steps').children.find((c) => c.hasClass('kedge-snoozed'))!;
     await snoozed.buttons()[0].onclick();
     await flush();
 
-    expect(modified[0].path).toBe('Chartroom/Next-Steps/file-taxes.md');
+    expect(modified[0].path).toBe('Kedge/Next-Steps/file-taxes.md');
     expect(modified[0].content).toContain('status: working');
     expect(modified[0].content).not.toContain('snooze_until');
     expect(modified[0].content).toContain('id: file-taxes');
     expect(opened).toEqual([]); // no new tab
 
     const after = section(root, 'Next steps');
-    expect(after.children.filter((c) => c.hasClass('chartroom-snoozed'))).toHaveLength(0);
+    expect(after.children.filter((c) => c.hasClass('kedge-snoozed'))).toHaveLength(0);
     expect(cardsIn(after).map(cardTitle)).toContain('File taxes');
   });
 
@@ -424,7 +424,7 @@ describe('Snoozed next steps', () => {
     await first.buttons()[0].onclick(); // "Do"
     await flush();
 
-    expect(modified[0].path).toBe('Chartroom/Next-Steps/call-the-dentist.md');
+    expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
     expect(modified[0].content).toContain('status: working');
     expect(opened).toEqual([]);
     expect(root.all((e) => e.tag === 'span' && e.text === ' · working on it')).toHaveLength(1);
@@ -444,17 +444,17 @@ describe('Future letters', () => {
     await view.render();
 
     const rows = section(root, 'Scheduled letters').all((e) =>
-      e.hasClass('chartroom-letter-row')
+      e.hasClass('kedge-letter-row')
     );
     expect(rows).toHaveLength(1);
     const row = rows[0];
 
     // title only: no body, no meta, no card chrome
-    const title = row.all((e) => e.hasClass('chartroom-letter-row-title'));
+    const title = row.all((e) => e.hasClass('kedge-letter-row-title'));
     expect(title.map((e) => e.text)).toEqual(['Dear me in a year']);
-    expect(row.all((e) => e.hasClass('chartroom-letter-body'))).toEqual([]);
-    expect(row.all((e) => e.hasClass('chartroom-meta'))).toEqual([]);
-    expect(row.all((e) => e.hasClass('chartroom-card'))).toEqual([]);
+    expect(row.all((e) => e.hasClass('kedge-letter-body'))).toEqual([]);
+    expect(row.all((e) => e.hasClass('kedge-meta'))).toEqual([]);
+    expect(row.all((e) => e.hasClass('kedge-card'))).toEqual([]);
 
     // the date is not printed, it sits in the row tooltip
     expect(row.title).toBe('opens 1 Jan 2099 · written 2026-11-02');
@@ -482,7 +482,7 @@ describe('Future letters', () => {
     click(modal.contentEl, 'Save');
     await flush();
 
-    expect(modified[0].path).toBe('Chartroom/Letters/dear-me-in-a-year.md');
+    expect(modified[0].path).toBe('Kedge/Letters/dear-me-in-a-year.md');
     expect(modified[0].content).toContain('seal_date: 2026-10-01');
     expect(modified[0].content).toContain('id: dear-me-in-a-year');
     expect(modified[0].content).toContain('created_at: 2026-11-02');
@@ -491,7 +491,7 @@ describe('Future letters', () => {
     const arrived = section(root, 'From past you');
     expect(arrived.all((e) => e.text === 'Dear me in a year').length).toBeGreaterThan(0);
     expect(
-      section(root, 'Scheduled letters').all((e) => e.hasClass('chartroom-scheduled'))
+      section(root, 'Scheduled letters').all((e) => e.hasClass('kedge-scheduled'))
     ).toHaveLength(0);
   });
 
@@ -502,7 +502,7 @@ describe('Future letters', () => {
     click(section(root, 'Scheduled letters'), 'Delete');
     await flush();
 
-    expect(deleted).toEqual(['Chartroom/Letters/dear-me-in-a-year.md']);
+    expect(deleted).toEqual(['Kedge/Letters/dear-me-in-a-year.md']);
     expect(section(root, 'Scheduled letters').all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
   });
 
@@ -523,7 +523,7 @@ describe('Future letters', () => {
     click(modal.contentEl, 'Seal it');
     await flush();
 
-    expect(created[0].path).toBe('Chartroom/Letters/dear-me-in-a-month.md');
+    expect(created[0].path).toBe('Kedge/Letters/dear-me-in-a-month.md');
     expect(created[0].content).toContain(`seal_date: ${addMonths(1)}`);
     expect(created[0].content).toContain('status: sealed');
     expect(created[0].content).toContain('Did it work?');
@@ -546,7 +546,7 @@ describe('Lesson search', () => {
     const { root } = await withTwoLessons();
     expect(cardsIn(section(root, 'Lessons'))).toHaveLength(2);
 
-    const search = section(root, 'Lessons').all((e) => e.hasClass('chartroom-search'))[0];
+    const search = section(root, 'Lessons').all((e) => e.hasClass('kedge-search'))[0];
     search.value = 'sale';
     search.dispatch('input');
 
@@ -559,7 +559,7 @@ describe('Lesson search', () => {
 
   test('shows a message when nothing matches, and keeps the query in the box', async () => {
     const { root } = await withTwoLessons();
-    const search = section(root, 'Lessons').all((e) => e.hasClass('chartroom-search'))[0];
+    const search = section(root, 'Lessons').all((e) => e.hasClass('kedge-search'))[0];
 
     search.value = 'zzzznope';
     search.dispatch('input');
@@ -583,7 +583,7 @@ describe('Arrived letters', () => {
     click(arrived, 'Delete');
     await flush();
 
-    expect(deleted).toEqual(['Chartroom/Letters/dear-future-me.md']);
+    expect(deleted).toEqual(['Kedge/Letters/dear-future-me.md']);
     expect(section(root, 'From past you').all((e) => e.text === 'Dear future me')).toHaveLength(0);
     expect(section(root, 'From past you').all((e) => e.text === 'No letters have arrived yet.')).toHaveLength(1);
   });

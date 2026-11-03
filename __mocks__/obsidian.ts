@@ -234,4 +234,4 @@ export class MarkdownView {}
 export class Component {}
 export class ItemView extends View {}
 
-export const VIEW_TYPE_CHARTROOM = "chartroom-dashboard";
+export const VIEW_TYPE_KEDGE = "kedge-dashboard";

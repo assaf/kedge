@@ -1,7 +1,7 @@
 {
-  "name": "chartroom-plugin",
+  "name": "kedge-plugin",
   "version": "0.1.0",
-  "description": "Chartroom Obsidian plugin",
+  "description": "Kedge Obsidian plugin",
   "main": "main.js",
   "scripts": {
     "build": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs",

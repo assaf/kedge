@@ -42,16 +42,16 @@ export interface Lesson {
   path: string;
 }
 
-export interface ChartroomSettings {
+export interface KedgeSettings {
   letterFolder: string;
   nextStepFolder: string;
   lessonFolder: string;
 }
 
-export const DEFAULT_SETTINGS: ChartroomSettings = {
-  letterFolder: "Chartroom/Letters",
-  nextStepFolder: "Chartroom/Next-Steps",
-  lessonFolder: "Chartroom/Lessons",
+export const DEFAULT_SETTINGS: KedgeSettings = {
+  letterFolder: "Kedge/Letters",
+  nextStepFolder: "Kedge/Next-Steps",
+  lessonFolder: "Kedge/Lessons",
 };
 
 export function nowStr(): string {
@@ -394,22 +394,22 @@ export function wireReorder(
     el.setAttribute("draggable", "true");
     el.addEventListener("dragstart", (evt: any) => {
       dragId = item.id;
-      el.addClass("chartroom-dragging");
+      el.addClass("kedge-dragging");
       evt?.dataTransfer?.setData?.("text/plain", item.id);
     });
     el.addEventListener("dragend", () => {
       dragId = null;
-      el.removeClass("chartroom-dragging");
+      el.removeClass("kedge-dragging");
     });
     el.addEventListener("dragover", (evt: any) => {
       if (!dragId || dragId === item.id) return;
       evt?.preventDefault?.();
-      el.addClass("chartroom-drop-target");
+      el.addClass("kedge-drop-target");
     });
-    el.addEventListener("dragleave", () => el.removeClass("chartroom-drop-target"));
+    el.addEventListener("dragleave", () => el.removeClass("kedge-drop-target"));
     el.addEventListener("drop", (evt: any) => {
       evt?.preventDefault?.();
-      el.removeClass("chartroom-drop-target");
+      el.removeClass("kedge-drop-target");
       const moved = dragId ?? evt?.dataTransfer?.getData?.("text/plain") ?? null;
       if (!moved || moved === item.id || !ids.includes(moved)) return;
       const next = ids.filter((id) => id !== moved);
@@ -427,13 +427,13 @@ export function wireReorder(
  * stacked: label, full-width control, hint.
  */
 function fieldWrap(parent: HTMLElement, label: string): HTMLElement {
-  const wrap = parent.createDiv({ cls: "chartroom-field" });
-  wrap.createEl("label", { cls: "chartroom-field-label", text: label });
+  const wrap = parent.createDiv({ cls: "kedge-field" });
+  wrap.createEl("label", { cls: "kedge-field-label", text: label });
   return wrap;
 }
 
 function fieldHint(wrap: HTMLElement, text: string): void {
-  wrap.createDiv({ cls: "chartroom-field-hint", text });
+  wrap.createDiv({ cls: "kedge-field-hint", text });
 }
 
 function textField(
@@ -442,7 +442,7 @@ function textField(
   opts: { placeholder?: string; value?: string; hint?: string; type?: string } = {}
 ): HTMLInputElement {
   const wrap = fieldWrap(parent, label);
-  const input = wrap.createEl("input", { cls: "chartroom-input" });
+  const input = wrap.createEl("input", { cls: "kedge-input" });
   input.type = opts.type ?? "text";
   input.placeholder = opts.placeholder ?? "";
   if (opts.value) input.value = opts.value;
@@ -457,7 +457,7 @@ function textareaField(
 ): HTMLTextAreaElement {
   const wrap = fieldWrap(parent, label);
   const ta = wrap.createEl("textarea", {
-    cls: opts.tall ? "chartroom-textarea chartroom-textarea-tall" : "chartroom-textarea",
+    cls: opts.tall ? "kedge-textarea kedge-textarea-tall" : "kedge-textarea",
   });
   ta.placeholder = opts.placeholder ?? "";
   if (opts.hint) fieldHint(wrap, opts.hint);
@@ -478,10 +478,10 @@ function segmentedField(
   hint?: string
 ): { getValue: () => string } {
   const wrap = fieldWrap(parent, label);
-  const group = wrap.createDiv({ cls: "chartroom-segmented" });
+  const group = wrap.createDiv({ cls: "kedge-segmented" });
   let current = value;
   const buttons = options.map((option) => {
-    const button = group.createEl("button", { cls: "chartroom-segment", text: option });
+    const button = group.createEl("button", { cls: "kedge-segment", text: option });
     button.type = "button";
     if (option === value) button.addClass("is-active");
     button.onclick = () => {
@@ -503,10 +503,10 @@ function modalActions(
   onPrimary: () => void,
   onCancel: () => void
 ): void {
-  const row = parent.createDiv({ cls: "chartroom-modal-actions" });
-  const cancel = row.createEl("button", { cls: "chartroom-btn", text: "Cancel" });
+  const row = parent.createDiv({ cls: "kedge-modal-actions" });
+  const cancel = row.createEl("button", { cls: "kedge-btn", text: "Cancel" });
   const primary = row.createEl("button", {
-    cls: "chartroom-btn chartroom-btn-primary",
+    cls: "kedge-btn kedge-btn-primary",
     text: primaryLabel,
   });
   cancel.onclick = onCancel;
@@ -515,13 +515,13 @@ function modalActions(
 
 /** Gives the modal the plugin's width and form styling. */
 function applyModalClass(modal: Modal): void {
-  modal.modalEl.addClass("chartroom-modal");
+  modal.modalEl.addClass("kedge-modal");
 }
 
 // --------------------------------------------------------------------- next step modal
 
 class NextStepModal extends Modal {
-  plugin: ChartroomPlugin;
+  plugin: KedgePlugin;
   onDone: () => void | Promise<void>;
   existing?: NextStep;
   titleEl!: HTMLInputElement;
@@ -529,7 +529,7 @@ class NextStepModal extends Modal {
 
   constructor(
     app: App,
-    plugin: ChartroomPlugin,
+    plugin: KedgePlugin,
     onDone: () => void | Promise<void>,
     existing?: NextStep
   ) {
@@ -612,7 +612,7 @@ class NextStepModal extends Modal {
 // --------------------------------------------------------------------- lesson modal
 
 class LessonModal extends Modal {
-  plugin: ChartroomPlugin;
+  plugin: KedgePlugin;
   onDone: () => void | Promise<void>;
   existing?: Lesson;
   claimEl!: HTMLInputElement;
@@ -620,7 +620,7 @@ class LessonModal extends Modal {
 
   constructor(
     app: App,
-    plugin: ChartroomPlugin,
+    plugin: KedgePlugin,
     onDone: () => void | Promise<void>,
     existing?: Lesson
   ) {
@@ -694,12 +694,12 @@ class LessonModal extends Modal {
 // --------------------------------------------------------------------- reply modal
 
 class ReplyModal extends Modal {
-  plugin: ChartroomPlugin;
+  plugin: KedgePlugin;
   letter: Letter;
   onDone: () => void | Promise<void>;
   bodyEl!: HTMLTextAreaElement;
 
-  constructor(app: App, plugin: ChartroomPlugin, letter: Letter, onDone: () => void | Promise<void>) {
+  constructor(app: App, plugin: KedgePlugin, letter: Letter, onDone: () => void | Promise<void>) {
     super(app);
     this.plugin = plugin;
     this.letter = letter;
@@ -711,12 +711,12 @@ class ReplyModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Reply to past you" });
 
-    const preview = contentEl.createDiv({ cls: "chartroom-letter-preview" });
+    const preview = contentEl.createDiv({ cls: "kedge-letter-preview" });
     preview.createDiv({
-      cls: "chartroom-meta",
+      cls: "kedge-meta",
       text: `${this.letter.title} · sealed ${this.letter.sealDate} · written ${this.letter.createdAt}`,
     });
-    preview.createDiv({ cls: "chartroom-letter-body", text: this.letter.body });
+    preview.createDiv({ cls: "kedge-letter-body", text: this.letter.body });
 
     this.bodyEl = textareaField(contentEl, "Your reply", {
       placeholder: "What does the person reading this letter now want to say back?",
@@ -760,7 +760,7 @@ const QUICK_SCHEDULE: Array<[string, number]> = [
 ];
 
 class LetterModal extends Modal {
-  plugin: ChartroomPlugin;
+  plugin: KedgePlugin;
   onDone: () => void | Promise<void>;
   existing?: Letter;
   titleEl!: HTMLInputElement;
@@ -770,7 +770,7 @@ class LetterModal extends Modal {
 
   constructor(
     app: App,
-    plugin: ChartroomPlugin,
+    plugin: KedgePlugin,
     onDone: () => void | Promise<void>,
     existing?: Letter
   ) {
@@ -794,9 +794,9 @@ class LetterModal extends Modal {
 
     // quick picks first; the date field below is the exact answer
     const quick = fieldWrap(contentEl, "Bring it back in");
-    const chips = quick.createDiv({ cls: "chartroom-segmented" });
+    const chips = quick.createDiv({ cls: "kedge-segmented" });
     for (const [label, months] of QUICK_SCHEDULE) {
-      const chip = chips.createEl("button", { cls: "chartroom-segment", text: label });
+      const chip = chips.createEl("button", { cls: "kedge-segment", text: label });
       chip.type = "button";
       chip.onclick = () => {
         this.dateEl.value = addMonths(months);
@@ -816,7 +816,7 @@ class LetterModal extends Modal {
     });
     if (this.existing) this.bodyEl.value = this.existing.body;
 
-    this.previewEl = contentEl.createDiv({ cls: "chartroom-field-hint" });
+    this.previewEl = contentEl.createDiv({ cls: "kedge-field-hint" });
     this.updatePreview();
 
     modalActions(
@@ -862,24 +862,24 @@ class LetterModal extends Modal {
 
 // --------------------------------------------------------------------- dashboard view
 
-export const VIEW_TYPE_CHARTROOM = "chartroom-dashboard";
+export const VIEW_TYPE_KEDGE = "kedge-dashboard";
 
-export class ChartroomView extends View {
-  plugin: ChartroomPlugin;
+export class KedgeView extends View {
+  plugin: KedgePlugin;
   container!: HTMLElement;
   lessonQuery = "";
 
-  constructor(leaf: WorkspaceLeaf, plugin: ChartroomPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: KedgePlugin) {
     super(leaf);
     this.plugin = plugin;
   }
 
   getViewType(): string {
-    return VIEW_TYPE_CHARTROOM;
+    return VIEW_TYPE_KEDGE;
   }
 
   getDisplayText(): string {
-    return "Chartroom";
+    return "Kedge";
   }
 
   async onOpen(): Promise<void> {
@@ -887,7 +887,7 @@ export class ChartroomView extends View {
     this.container.style.overflow = "auto";
     this.container.style.height = "100%";
     this.container.empty();
-    this.container.addClass("chartroom-view");
+    this.container.addClass("kedge-view");
     await this.render();
   }
 
@@ -895,8 +895,8 @@ export class ChartroomView extends View {
     try {
       await this.renderBody();
     } catch (err) {
-      new Notice("Chartroom render failed: " + (err as Error).message);
-      console.error("Chartroom render failed:", err);
+      new Notice("Kedge render failed: " + (err as Error).message);
+      console.error("Kedge render failed:", err);
     }
   }
 
@@ -906,9 +906,9 @@ export class ChartroomView extends View {
 
   /** Title row that leaves space for section-level actions. */
   private sectionHead(parent: HTMLElement, title: string): HTMLElement {
-    const head = parent.createDiv({ cls: "chartroom-section-head" });
+    const head = parent.createDiv({ cls: "kedge-section-head" });
     head.createEl("h2", { text: title });
-    return head.createDiv({ cls: "chartroom-actions" });
+    return head.createDiv({ cls: "kedge-actions" });
   }
 
   private async renderBody(): Promise<void> {
@@ -916,10 +916,10 @@ export class ChartroomView extends View {
     this.container.empty();
 
     // header
-    const header = this.container.createDiv({ cls: "chartroom-section" });
-    header.createEl("h2", { text: "Chartroom" });
+    const header = this.container.createDiv({ cls: "kedge-section" });
+    header.createEl("h2", { text: "Kedge" });
     header.createEl("div", {
-      cls: "chartroom-meta",
+      cls: "kedge-meta",
       text: `Today: ${nowStr()}  ·  New letter: Ctrl/Cmd+Shift+L  ·  New step: Ctrl/Cmd+Shift+N`,
     });
 
@@ -930,14 +930,14 @@ export class ChartroomView extends View {
       (a, b) => byOrder(a, b) || a.priority - b.priority || a.createdAt.localeCompare(b.createdAt)
     );
 
-    const bestSection = this.container.createDiv({ cls: "chartroom-section" });
+    const bestSection = this.container.createDiv({ cls: "kedge-section" });
     this.sectionHead(bestSection, "Next best step");
     if (pending.length > 0) {
       const best = pending[0];
-      const card = bestSection.createDiv({ cls: "chartroom-card" });
-      card.createDiv({ cls: "chartroom-card-title", text: best.title });
-      card.createDiv({ cls: "chartroom-card-body", text: "Do this now. Everything else can wait." });
-      const actions = card.createDiv({ cls: "chartroom-actions" });
+      const card = bestSection.createDiv({ cls: "kedge-card" });
+      card.createDiv({ cls: "kedge-card-title", text: best.title });
+      card.createDiv({ cls: "kedge-card-body", text: "Do this now. Everything else can wait." });
+      const actions = card.createDiv({ cls: "kedge-actions" });
       const doneBtn = actions.createEl("button", { cls: "mod-clickable", text: "Done" });
       const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
       doneBtn.onclick = async () => {
@@ -949,9 +949,9 @@ export class ChartroomView extends View {
         await this.render();
       };
     } else {
-      const empty = bestSection.createDiv({ cls: "chartroom-empty" });
+      const empty = bestSection.createDiv({ cls: "kedge-empty" });
       empty.createDiv({ text: "No pending next steps." });
-      const actions = empty.createDiv({ cls: "chartroom-actions" });
+      const actions = empty.createDiv({ cls: "kedge-actions" });
       const newBtn = actions.createEl("button", { cls: "mod-clickable", text: "New next step" });
       newBtn.onclick = () => this.openNewStepModal();
     }
@@ -965,21 +965,21 @@ export class ChartroomView extends View {
       .filter((l) => !hasArrived(l))
       .sort((a, b) => a.sealDate.localeCompare(b.sealDate));
 
-    const pastSection = this.container.createDiv({ cls: "chartroom-section" });
+    const pastSection = this.container.createDiv({ cls: "kedge-section" });
     this.sectionHead(pastSection, "From past you");
     if (arrived.length > 0) {
       for (const letter of arrived) {
-        const card = pastSection.createDiv({ cls: "chartroom-card" });
-        const titleDiv = card.createDiv({ cls: "chartroom-card-title" });
+        const card = pastSection.createDiv({ cls: "kedge-card" });
+        const titleDiv = card.createDiv({ cls: "kedge-card-title" });
         titleDiv.createSpan({ text: letter.title });
         titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
-        card.createDiv({ cls: "chartroom-letter-body", text: letter.body });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
+        card.createDiv({ cls: "kedge-letter-body", text: letter.body });
+        const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createEl("span", { text: `Written ${letter.createdAt}` });
-        const actions = card.createDiv({ cls: "chartroom-actions" });
+        const actions = card.createDiv({ cls: "kedge-actions" });
         const replyBtn = actions.createEl("button", { cls: "mod-clickable", text: "Reply to past me" });
         const deleteBtn = actions.createEl("button", {
-          cls: "mod-clickable chartroom-danger",
+          cls: "mod-clickable kedge-danger",
           text: "Delete",
         });
         replyBtn.onclick = () => this.openReplyModal(letter);
@@ -989,10 +989,10 @@ export class ChartroomView extends View {
         };
       }
     } else {
-      pastSection.createDiv({ cls: "chartroom-empty", text: "No letters have arrived yet." });
+      pastSection.createDiv({ cls: "kedge-empty", text: "No letters have arrived yet." });
     }
 
-    const scheduledSection = this.container.createDiv({ cls: "chartroom-section" });
+    const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
     const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
     const newLetterBtn = scheduledHead.createEl("button", {
       cls: "mod-clickable",
@@ -1001,14 +1001,14 @@ export class ChartroomView extends View {
     newLetterBtn.onclick = () => this.openNewLetterModal();
     if (scheduled.length > 0) {
       for (const letter of scheduled) {
-        const row = scheduledSection.createDiv({ cls: "chartroom-letter-row" });
+        const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
         // full detail stays on hover; the list keeps to one line per letter
         row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
-        row.createDiv({ cls: "chartroom-letter-row-title", text: letter.title });
-        const actions = row.createDiv({ cls: "chartroom-actions" });
+        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        const actions = row.createDiv({ cls: "kedge-actions" });
         const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
         const deleteBtn = actions.createEl("button", {
-          cls: "mod-clickable chartroom-danger",
+          cls: "mod-clickable kedge-danger",
           text: "Delete",
         });
         editBtn.onclick = () => this.openEditLetterModal(letter);
@@ -1019,13 +1019,13 @@ export class ChartroomView extends View {
       }
     } else {
       scheduledSection.createDiv({
-        cls: "chartroom-empty",
+        cls: "kedge-empty",
         text: "Nothing scheduled. Write a letter and pick when it comes back.",
       });
     }
 
     // ---- Next steps list ----
-    const listSection = this.container.createDiv({ cls: "chartroom-section" });
+    const listSection = this.container.createDiv({ cls: "kedge-section" });
     const listActions = this.sectionHead(listSection, "Next steps");
     const newStepBtn = listActions.createEl("button", { cls: "mod-clickable", text: "+ New step" });
     newStepBtn.onclick = () => this.openNewStepModal();
@@ -1038,17 +1038,17 @@ export class ChartroomView extends View {
       const ordered = this.sortSteps(activeSteps);
       const dragCards: DraggableCard[] = [];
       for (const step of ordered) {
-        const card = listSection.createDiv({ cls: "chartroom-card chartroom-draggable" });
+        const card = listSection.createDiv({ cls: "kedge-card kedge-draggable" });
         dragCards.push({ id: step.id, el: card });
-        const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
-        head.createSpan({ cls: "chartroom-grip", text: "⠿" });
+        const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
+        head.createSpan({ cls: "kedge-grip", text: "⠿" });
         head.createSpan({ text: step.title });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
+        const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createEl("span", { text: `${priorityLabel(step.priority)} priority` });
         if (step.status === "working") {
           meta.createEl("span", { text: " · working on it" });
         }
-        const actions = card.createDiv({ cls: "chartroom-actions" });
+        const actions = card.createDiv({ cls: "kedge-actions" });
         const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
         const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
         const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
@@ -1073,19 +1073,19 @@ export class ChartroomView extends View {
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
     } else if (snoozedSteps.length === 0) {
-      listSection.createDiv({ cls: "chartroom-empty", text: "Nothing to do." });
+      listSection.createDiv({ cls: "kedge-empty", text: "Nothing to do." });
     }
 
     if (snoozedSteps.length > 0) {
-      listSection.createDiv({ cls: "chartroom-subhead", text: "Snoozed" });
+      listSection.createDiv({ cls: "kedge-subhead", text: "Snoozed" });
       for (const step of snoozedSteps) {
-        const card = listSection.createDiv({ cls: "chartroom-card chartroom-snoozed" });
-        card.createDiv({ cls: "chartroom-card-title", text: step.title });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
+        const card = listSection.createDiv({ cls: "kedge-card kedge-snoozed" });
+        card.createDiv({ cls: "kedge-card-title", text: step.title });
+        const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createEl("span", {
           text: step.snoozeUntil ? `snoozed until ${step.snoozeUntil}` : "snoozed",
         });
-        const actions = card.createDiv({ cls: "chartroom-actions" });
+        const actions = card.createDiv({ cls: "kedge-actions" });
         const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
         doBtn.onclick = async () => {
           await this.startStep(step.id);
@@ -1102,16 +1102,16 @@ export class ChartroomView extends View {
 
     // ---- Lessons ----
     const lessons = await loadLessons(app, settings.lessonFolder);
-    const lessonSection = this.container.createDiv({ cls: "chartroom-section" });
+    const lessonSection = this.container.createDiv({ cls: "kedge-section" });
     const lessonActions = this.sectionHead(lessonSection, "Lessons");
     const newLessonBtn = lessonActions.createEl("button", { cls: "mod-clickable", text: "+ New lesson" });
     newLessonBtn.onclick = () => this.openNewLessonModal();
 
-    const search = lessonSection.createEl("input", { cls: "chartroom-search" });
+    const search = lessonSection.createEl("input", { cls: "kedge-search" });
     search.type = "search";
     search.placeholder = "Search your lessons";
     search.value = this.lessonQuery;
-    const lessonList = lessonSection.createDiv({ cls: "chartroom-lesson-list" });
+    const lessonList = lessonSection.createDiv({ cls: "kedge-lesson-list" });
     this.renderLessons(lessonList, lessons);
     search.addEventListener("input", () => {
       this.lessonQuery = search.value;
@@ -1123,30 +1123,30 @@ export class ChartroomView extends View {
   private renderLessons(container: HTMLElement, lessons: Lesson[]): void {
     container.empty();
     if (lessons.length === 0) {
-      container.createDiv({ cls: "chartroom-empty", text: "No lessons yet." });
+      container.createDiv({ cls: "kedge-empty", text: "No lessons yet." });
       return;
     }
 
     const matches = filterLessons(this.sortLessons(lessons), this.lessonQuery);
     if (matches.length === 0) {
-      container.createDiv({ cls: "chartroom-empty", text: "No lesson matches that." });
+      container.createDiv({ cls: "kedge-empty", text: "No lesson matches that." });
       return;
     }
 
     const dragCards: DraggableCard[] = [];
     for (const lesson of matches) {
-      const card = container.createDiv({ cls: "chartroom-card chartroom-draggable" });
+      const card = container.createDiv({ cls: "kedge-card kedge-draggable" });
       dragCards.push({ id: lesson.id, el: card });
-      const head = card.createDiv({ cls: "chartroom-card-title chartroom-card-head" });
-      head.createSpan({ cls: "chartroom-grip", text: "⠿" });
+      const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
+      head.createSpan({ cls: "kedge-grip", text: "⠿" });
       head.createSpan({ text: lesson.claim });
-      const meta = card.createDiv({ cls: "chartroom-meta" });
+      const meta = card.createDiv({ cls: "kedge-meta" });
       if (lesson.category) meta.createEl("span", { text: lesson.category });
       if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });
-      const actions = card.createDiv({ cls: "chartroom-actions" });
+      const actions = card.createDiv({ cls: "kedge-actions" });
       const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
       const deleteBtn = actions.createEl("button", {
-        cls: "mod-clickable chartroom-danger",
+        cls: "mod-clickable kedge-danger",
         text: "Delete",
       });
       editBtn.onclick = () => this.openEditLessonModal(lesson);
@@ -1292,10 +1292,10 @@ export class ChartroomView extends View {
 
 // --------------------------------------------------------------------- settings tab
 
-class ChartroomSettingTab extends PluginSettingTab {
-  plugin: ChartroomPlugin;
+class KedgeSettingTab extends PluginSettingTab {
+  plugin: KedgePlugin;
 
-  constructor(app: App, plugin: ChartroomPlugin) {
+  constructor(app: App, plugin: KedgePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -1303,7 +1303,7 @@ class ChartroomSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Chartroom settings" });
+    containerEl.createEl("h2", { text: "Kedge settings" });
 
     new Setting(containerEl)
       .setName("Letter folder")
@@ -1339,22 +1339,22 @@ class ChartroomSettingTab extends PluginSettingTab {
 
 // --------------------------------------------------------------------- main plugin
 
-export default class ChartroomPlugin extends Plugin {
-  settings!: ChartroomSettings;
+export default class KedgePlugin extends Plugin {
+  settings!: KedgeSettings;
 
   async onload(): Promise<void> {
     await this.loadSettings();
 
     // register dashboard view
-    this.registerView(VIEW_TYPE_CHARTROOM, (leaf) => new ChartroomView(leaf, this));
+    this.registerView(VIEW_TYPE_KEDGE, (leaf) => new KedgeView(leaf, this));
 
     // ribbon icon
-    this.addRibbonIcon("mail", "Open Chartroom", async () => {
+    this.addRibbonIcon("mail", "Open Kedge", async () => {
       await this.activateDashboard();
     });
 
     this.addCommand({
-      id: "open-chartroom",
+      id: "open-dashboard",
       name: "Open dashboard",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
       callback: async () => {
@@ -1363,7 +1363,7 @@ export default class ChartroomPlugin extends Plugin {
     });
     // reopens the dashboard (use if the UI is stale or blank)
     this.addCommand({
-      id: "reload-chartroom",
+      id: "reload-dashboard",
       name: "Reload dashboard",
       callback: async () => {
         await this.reloadDashboard();
@@ -1371,20 +1371,20 @@ export default class ChartroomPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-chartroom-tab",
+      id: "open-dashboard-tab",
       name: "Open dashboard in tab",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "T" }],
       callback: async () => {
         try {
           const leaf = this.getTargetLeaf();
-          if (!leaf) { new Notice("Chartroom tab: no leaf available"); return; }
-          await leaf.setViewState({ type: VIEW_TYPE_CHARTROOM, state: {} });
+          if (!leaf) { new Notice("Kedge tab: no leaf available"); return; }
+          await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
           this.app.workspace.revealLeaf(leaf);
-        } catch (err) { new Notice("Chartroom tab failed: " + (err as Error).message); }
+        } catch (err) { new Notice("Kedge tab failed: " + (err as Error).message); }
       },
     });
     this.addCommand({
-      id: "open-chartroom-sidebar",
+      id: "open-dashboard-sidebar",
       name: "Open dashboard in the sidebar",
       callback: async () => {
         await this.activateDashboardInSidebar();
@@ -1415,7 +1415,7 @@ export default class ChartroomPlugin extends Plugin {
     });
 
     // settings tab
-    this.addSettingTab(new ChartroomSettingTab(this.app, this));
+    this.addSettingTab(new KedgeSettingTab(this.app, this));
 
     // ensure folders exist
     await this.ensureFolders();
@@ -1429,7 +1429,7 @@ export default class ChartroomPlugin extends Plugin {
 
   /** Re-render every open dashboard so a modal's write shows up immediately. */
   async refreshDashboards(): Promise<void> {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHARTROOM)) {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE)) {
       const view = leaf.view as unknown as { render?: () => Promise<void> };
       if (view && typeof view.render === "function") await view.render();
     }
@@ -1438,13 +1438,13 @@ export default class ChartroomPlugin extends Plugin {
   async activateDashboard(): Promise<void> {
     try {
       const leaf = this.getTargetLeaf();
-      if (!leaf) { new Notice("Chartroom: no open leaf to attach to"); return; }
-      await leaf.setViewState({ type: VIEW_TYPE_CHARTROOM, state: {} });
+      if (!leaf) { new Notice("Kedge: no open leaf to attach to"); return; }
+      await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
-      new Notice("Chartroom failed to open: " + msg);
-      console.error("Chartroom activate failed:", err);
+      new Notice("Kedge failed to open: " + msg);
+      console.error("Kedge activate failed:", err);
     }
   }
 
@@ -1456,24 +1456,24 @@ export default class ChartroomPlugin extends Plugin {
   async activateDashboardInSidebar(): Promise<void> {
     try {
       const leaf = this.app.workspace.getRightLeaf(false);
-      if (!leaf) { new Notice("Chartroom: no right sidebar to attach to"); return; }
-      await leaf.setViewState({ type: VIEW_TYPE_CHARTROOM, state: {} });
+      if (!leaf) { new Notice("Kedge: no right sidebar to attach to"); return; }
+      await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
-      new Notice("Chartroom sidebar failed: " + (err as Error).message);
-      console.error("Chartroom sidebar failed:", err);
+      new Notice("Kedge sidebar failed: " + (err as Error).message);
+      console.error("Kedge sidebar failed:", err);
     }
   }
 
   async reloadDashboard(): Promise<void> {
     try {
       const leaf = this.getTargetLeaf();
-      if (!leaf) { new Notice("Chartroom reload: no open leaf"); return; }
-      await leaf.setViewState({ type: VIEW_TYPE_CHARTROOM, state: {} });
+      if (!leaf) { new Notice("Kedge reload: no open leaf"); return; }
+      await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
-      new Notice("Chartroom reload failed: " + (err as Error).message);
-      console.error("Chartroom reload failed:", err);
+      new Notice("Kedge reload failed: " + (err as Error).message);
+      console.error("Kedge reload failed:", err);
     }
   }
 
@@ -1490,13 +1490,13 @@ export default class ChartroomPlugin extends Plugin {
   }
 
   /**
-   * Pick a leaf to host the dashboard view. Reuses an existing chartroom
+   * Pick a leaf to host the dashboard view. Reuses an existing kedge
    * leaf if one is open, otherwise asks the workspace for a fresh leaf.
    * Workspace.getLeaves() does not exist in this Obsidian build, so the
    * public API is used instead.
    */
   private getTargetLeaf(): WorkspaceLeaf | null {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHARTROOM);
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE);
     if (existing.length) return existing[0];
     return this.app.workspace.getLeaf();
   }

@@ -1,7 +1,7 @@
 jest.spyOn(console, 'error').mockImplementation(() => {});
 
-import ChartroomPlugin from '../main';
-import { WorkspaceLeaf, Workspace, VIEW_TYPE_CHARTROOM, Notice, registeredCommands, notices, DEFAULT_SETTINGS } from 'obsidian';
+import KedgePlugin from '../main';
+import { WorkspaceLeaf, Workspace, VIEW_TYPE_KEDGE, Notice, registeredCommands, notices, DEFAULT_SETTINGS } from 'obsidian';
 
 beforeEach(() => {
   registeredCommands.length = 0;
@@ -9,8 +9,8 @@ beforeEach(() => {
 });
 
 describe('Plugin registration and command registration', () => {
-  test('onload registers chartroom commands with hotkeys', async () => {
-    const plugin = new ChartroomPlugin() as any;
+  test('onload registers kedge commands with hotkeys', async () => {
+    const plugin = new KedgePlugin() as any;
     plugin.app = {
       vault: {
         adapter: { exists: () => Promise.resolve(true), mkdir: () => Promise.resolve(), modify: () => Promise.resolve(), create: () => Promise.resolve() },
@@ -33,7 +33,7 @@ describe('Plugin registration and command registration', () => {
   });
 
   test('registers the sidebar command', async () => {
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = {
       vault: {
         adapter: { exists: () => Promise.resolve(true), mkdir: () => Promise.resolve() },
@@ -45,7 +45,7 @@ describe('Plugin registration and command registration', () => {
     await (plugin as any).onload();
 
     // Obsidian prefixes plugin command ids with the plugin id at runtime
-    expect(registeredCommands.map((c) => c.id)).toContain('open-chartroom-sidebar');
+    expect(registeredCommands.map((c) => c.id)).toContain('open-dashboard-sidebar');
   });
 });
 
@@ -56,12 +56,12 @@ describe('activateDashboardInSidebar', () => {
     const workspace = new Workspace([]);
     workspace.rightLeaf = leaf;
 
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
     await (plugin as any).activateDashboardInSidebar();
-    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_CHARTROOM, state: {} });
+    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_KEDGE, state: {} });
     expect(workspace.revealLeaf).toHaveBeenCalledWith(leaf);
   });
 
@@ -69,7 +69,7 @@ describe('activateDashboardInSidebar', () => {
     const workspace: any = new Workspace([]);
     workspace.getRightLeaf = () => null;
 
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
@@ -80,7 +80,7 @@ describe('activateDashboardInSidebar', () => {
 
 describe('activateDashboard', () => {
   test('shows no-leaf notice when no leaves exist', async () => {
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace: new Workspace([]) };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
@@ -92,19 +92,19 @@ describe('activateDashboard', () => {
     const leaf = new WorkspaceLeaf();
     leaf.setViewState = jest.fn(async () => {});
 
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace: new Workspace([leaf]) };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
     await (plugin as any).activateDashboard();
-    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_CHARTROOM, state: {} });
+    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_KEDGE, state: {} });
   });
 
   test('shows failed notice when setViewState throws', async () => {
     const leaf = new WorkspaceLeaf();
     leaf.setViewState = jest.fn(async () => { throw new Error('boom'); });
 
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace: new Workspace([leaf]) };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
@@ -118,12 +118,12 @@ describe('reloadDashboard', () => {
     const leaf = new WorkspaceLeaf();
     leaf.setViewState = jest.fn(async () => {});
 
-    const plugin = new ChartroomPlugin() as any;
+    const plugin = new KedgePlugin() as any;
     plugin.app = { workspace: new Workspace([leaf]) };
     plugin.settings = { ...DEFAULT_SETTINGS };
 
     await (plugin as any).reloadDashboard();
-    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_CHARTROOM, state: {} });
+    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_KEDGE, state: {} });
   });
 });
 

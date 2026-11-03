@@ -81,8 +81,8 @@ async function waitFor(label, timeoutMs, probe) {
 // --------------------------------------------------------------------- scratch vault
 
 function buildScratchVault() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chartroom-smoke-"));
-  const plugins = path.join(dir, ".obsidian", "plugins", "chartroom");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kedge-smoke-"));
+  const plugins = path.join(dir, ".obsidian", "plugins", "kedge");
   fs.mkdirSync(plugins, { recursive: true });
   for (const file of ["main.js", "manifest.json", "styles.css"]) {
     if (!fs.existsSync(file)) die(`${file} missing — run "npm run build" first`);
@@ -90,7 +90,7 @@ function buildScratchVault() {
   }
   fs.writeFileSync(
     path.join(dir, ".obsidian", "community-plugins.json"),
-    JSON.stringify(["chartroom"], null, 2)
+    JSON.stringify(["kedge"], null, 2)
   );
   return dir;
 }
@@ -133,13 +133,13 @@ async function restoreVault(backup, timeoutMs = 90_000) {
  * check therefore polls to a deadline instead of trusting one reading.
  */
 const WANTED_COMMANDS = [
-  "chartroom:open-chartroom",
-  "chartroom:create-next-step",
-  "chartroom:create-lesson",
+  "kedge:open-dashboard",
+  "kedge:create-next-step",
+  "kedge:create-lesson",
 ];
 
 function readCommands() {
-  const res = tryObsidian(["commands", "filter=chartroom"]);
+  const res = tryObsidian(["commands", "filter=kedge"]);
   if (!cliSucceeded(res)) return [];
   return res.out
     .split("\n")
@@ -152,7 +152,7 @@ async function checkCommandsRegistered(timeoutMs = 60_000) {
     const ids = readCommands();
     return WANTED_COMMANDS.every((id) => ids.includes(id)) ? ids : false;
   });
-  if (Array.isArray(ready)) pass("commands registered", `${ready.length} chartroom:* commands`);
+  if (Array.isArray(ready)) pass("commands registered", `${ready.length} kedge:* commands`);
   else fail("commands registered", `missing some of ${WANTED_COMMANDS.join(", ")}`);
 }
 
@@ -163,13 +163,13 @@ function cliSucceeded(res) {
 
 async function checkCommandRuns(timeoutMs = 30_000) {
   const done = await waitFor("command execution", timeoutMs, () => {
-    const res = tryObsidian(["command", "id=chartroom:open-chartroom"]);
+    const res = tryObsidian(["command", "id=kedge:open-dashboard"]);
     return cliSucceeded(res) ? res.out : false;
   });
   if (typeof done === "string") {
-    pass("obsidian command id=chartroom:open-chartroom", done.split("\n")[0]);
+    pass("obsidian command id=kedge:open-dashboard", done.split("\n")[0]);
   } else {
-    fail("obsidian command id=chartroom:open-chartroom", "the CLI refused to run it");
+    fail("obsidian command id=kedge:open-dashboard", "the CLI refused to run it");
   }
 }
 
@@ -203,22 +203,22 @@ async function checkViewInWorkspace(timeoutMs = 30_000) {
   let retriedAt = 0;
   while (Date.now() < deadline) {
     const tree = tryObsidian(["workspace"]);
-    if (cliSucceeded(tree) && tree.out.includes("[chartroom-dashboard]")) {
+    if (cliSucceeded(tree) && tree.out.includes("[kedge-dashboard]")) {
       pass("dashboard view is in the workspace");
       return;
     }
     // one retry in case the first open landed mid-reload
     if (Date.now() - retriedAt > 5_000) {
       retriedAt = Date.now();
-      tryObsidian(["command", "id=chartroom:open-chartroom"]);
+      tryObsidian(["command", "id=kedge:open-dashboard"]);
     }
     await sleep(500);
   }
-  fail("dashboard view is in the workspace", "no [chartroom-dashboard] tab appeared");
+  fail("dashboard view is in the workspace", "no [kedge-dashboard] tab appeared");
 }
 
 async function checkFoldersCreated(timeoutMs = 30_000) {
-  const wanted = ["Chartroom/Letters", "Chartroom/Next-Steps", "Chartroom/Lessons"];
+  const wanted = ["Kedge/Letters", "Kedge/Next-Steps", "Kedge/Lessons"];
   const ready = await waitFor("folders", timeoutMs, () => {
     const listing = tryObsidian(["folders"]);
     if (!cliSucceeded(listing)) return false;

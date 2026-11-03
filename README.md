@@ -1,11 +1,11 @@
-# Chartroom — Obsidian plugin
+# Kedge — Obsidian plugin
 
 Next best step · Letters to/from future self · Snoozable next steps · One-line lessons.
 
 ## Install
 
 ```bash
-cd chartroom-plugin
+cd kedge
 npm install
 npm run build
 ```
@@ -13,10 +13,10 @@ npm run build
 Copy `main.js`, `manifest.json`, and `styles.css` into your vault's plugins folder:
 
 ```
-<vault>/.obsidian/plugins/chartroom/
+<vault>/.obsidian/plugins/kedge/
 ```
 
-Then enable "Chartroom" in Obsidian → Settings → Community Plugins → Installed.
+Then enable "Kedge" in Obsidian → Settings → Community Plugins → Installed.
 
 ## Commands
 
@@ -83,9 +83,9 @@ flip the status.
 
 ## Data model (all stored as markdown notes in your vault)
 
-- `Chartroom/Letters/*.md` — frontmatter: `id`, `title`, `status` (sealed/delivered/opened), `seal_date`, `created_at`
-- `Chartroom/Next-Steps/*.md` — frontmatter: `id`, `title`, `status` (pending/snoozed/done), `priority` (1–5), `snooze_until`, `order`, `created_at`
-- `Chartroom/Lessons/*.md` — frontmatter: `id`, `claim`, `category`, `week`, `order`, `created_at`
+- `Kedge/Letters/*.md` — frontmatter: `id`, `title`, `status` (sealed/delivered/opened), `seal_date`, `created_at`
+- `Kedge/Next-Steps/*.md` — frontmatter: `id`, `title`, `status` (pending/snoozed/done), `priority` (1–5), `snooze_until`, `order`, `created_at`
+- `Kedge/Lessons/*.md` — frontmatter: `id`, `claim`, `category`, `week`, `order`, `created_at`
 
 ## Develop
 
@@ -108,9 +108,9 @@ what anything looks like — those failures shipped before.
 
 - the plugin loads (restricted mode disabled for the scratch vault)
 - its commands register
-- `chartroom:open-chartroom` executes
-- the workspace really contains a `chartroom-dashboard` view
-- `onload` created `Chartroom/{Letters,Next-Steps,Lessons}`
+- `kedge:open-dashboard` executes
+- the workspace really contains a `kedge-dashboard` view
+- `onload` created `Kedge/{Letters,Next-Steps,Lessons}`
 
 It needs Obsidian running and the CLI on `PATH` (`obsidian`), takes ~5 s, and
 restores the vault registry byte-for-byte on the way out — your notes are never
