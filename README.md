@@ -2,6 +2,8 @@
 
 Next best step · Letters to/from future self · Snoozable next steps · One-line lessons.
 
+![](public/image.png)
+
 ## Install
 
 ```bash
@@ -20,13 +22,13 @@ Then enable "Kedge" in Obsidian → Settings → Community Plugins → Installed
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| Open dashboard (`Cmd+Shift+M`) | Opens the dashboard, reusing the existing Kedge leaf and re-rendering it |
-| Open dashboard in the sidebar | Puts the dashboard in the right sidebar, so it stays visible beside your notes |
-| Write letter to future me (`Cmd+Shift+L`) | Modal to write + seal a letter with a delivery date |
-| Create next step (`Cmd+Shift+N`) | Modal: step title + priority, writes a pending note |
-| Create lesson | Modal: one-line lesson + optional category |
+| Command                                   | What it does                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| Open dashboard (`Cmd+Shift+M`)            | Opens the dashboard, reusing the existing Kedge leaf and re-rendering it       |
+| Open dashboard in the sidebar             | Puts the dashboard in the right sidebar, so it stays visible beside your notes |
+| Write letter to future me (`Cmd+Shift+L`) | Modal to write + seal a letter with a delivery date                            |
+| Create next step (`Cmd+Shift+N`)          | Modal: step title + priority, writes a pending note                            |
+| Create lesson                             | Modal: one-line lesson + optional category                                     |
 
 The dashboard carries the same actions as buttons: "+ New step", "+ New lesson",
 "Edit" on a step (title + priority), "Edit" / "Delete" on a lesson and on every
