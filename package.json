@@ -2,12 +2,12 @@
   "name": "kedge-plugin",
   "version": "0.1.0",
   "description": "Kedge Obsidian plugin",
-  "main": "main.js",
+  "packageManager": "pnpm@12.16.1",
   "scripts": {
     "build": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && jest",
-    "smoke": "npm run build && node scripts/smoke.mjs",
+    "test": "pnpm typecheck && jest",
+    "smoke": "pnpm build && node scripts/smoke.mjs",
     "dev": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs --watch"
   },
   "devDependencies": {
@@ -17,9 +17,5 @@
     "jest": "^30.5.2",
     "obsidian": "^1.14.4",
     "typescript": "^7.0.2"
-  },
-  "allowScripts": {
-    "@parcel/watcher@2.6.0": true,
-    "esbuild@0.28.2": true
   }
 }

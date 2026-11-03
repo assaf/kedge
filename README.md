@@ -8,8 +8,8 @@ Next best step · Letters to/from future self · Snoozable next steps · One-lin
 
 ```bash
 cd kedge
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 Copy `main.js`, `manifest.json`, and `styles.css` into your vault's plugins folder:
@@ -90,19 +90,19 @@ flip the status.
 ## Develop
 
 ```bash
-npm install        # obsidian, typescript, @types/node, esbuild, jest
-npm run build      # esbuild → main.js
-npm run dev        # watch mode
-npm run typecheck  # tsc --noEmit against the real obsidian.d.ts
-npm test           # typecheck + jest (mocked Obsidian)
-npm run smoke      # live run in real Obsidian, scratch vault
+pnpm install        # obsidian, typescript, @types/node, esbuild, jest
+pnpm build          # esbuild → main.js
+pnpm dev            # watch mode
+pnpm typecheck      # tsc --noEmit against the real obsidian.d.ts
+pnpm test           # typecheck + jest (mocked Obsidian)
+pnpm smoke          # live run in real Obsidian, scratch vault
 ```
 
-`npm test` is fast and offline, but it exercises a hand-written Obsidian mock.
+`pnpm test` is fast and offline, but it exercises a hand-written Obsidian mock.
 It cannot see whether Obsidian accepts an API call, whether a view appears, or
 what anything looks like — those failures shipped before.
 
-`npm run smoke` closes that gap. It builds, creates a throwaway vault in
+`pnpm smoke` closes that gap. It builds, creates a throwaway vault in
 `$TMPDIR`, copies the plugin in, switches Obsidian to it through the official
 `obsidian` CLI, and asserts:
 
