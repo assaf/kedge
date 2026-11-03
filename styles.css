@@ -271,7 +271,12 @@
   box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.chartroom-search {
+/**
+ * Scoped to the section so it outranks Obsidian's own input rules (which set
+ * the theme's dark form background and made the field look like a hole in the
+ * page). Transparent means it inherits the dashboard's light surface.
+ */
+.chartroom-section .chartroom-search {
   width: 100%;
   box-sizing: border-box;
   margin-bottom: 10px;
@@ -279,15 +284,20 @@
   font-family: inherit;
   font-size: 0.85rem;
   color: #1a202c;
-  background: #fff;
+  background-color: transparent;
   border: 1px solid rgba(0,0,0,0.12);
   border-radius: 8px;
+  box-shadow: none;
 }
 
-.chartroom-search:focus {
+.chartroom-section .chartroom-search::placeholder {
+  color: #8892b0;
+}
+
+.chartroom-section .chartroom-search:focus {
   outline: none;
   border-color: #4a90e2;
-  box-shadow: 0 0 0 3px rgba(74,144,226,0.18);
+  box-shadow: 0 0 0 2px rgba(74,144,226,0.18);
 }
 
 .chartroom-textarea {
