@@ -945,7 +945,7 @@ export class KedgeView extends View {
 
     // header
     const header = this.container.createDiv({ cls: "kedge-section" });
-    header.createEl("h2", { text: "Kedge" });
+    header.createEl("h2", { text: "⚓ Kedge" });
     const hints = this.shortcutHints([
       ["Open dashboard", "open-dashboard"],
       ["New letter", "write-letter"],

@@ -714,7 +714,7 @@ var KedgeView = class extends import_obsidian.View {
     const { app, settings } = this.plugin;
     this.container.empty();
     const header = this.container.createDiv({ cls: "kedge-section" });
-    header.createEl("h2", { text: "Kedge" });
+    header.createEl("h2", { text: "\u2693 Kedge" });
     const hints = this.shortcutHints([
       ["Open dashboard", "open-dashboard"],
       ["New letter", "write-letter"],

@@ -76,7 +76,7 @@ describe('KedgeView.render', () => {
     await view.render();
 
     const heading = root.children[0].all((e) => e.tag === 'h2').map((e) => e.text);
-    expect(heading).toEqual(['Kedge']);
+    expect(heading).toEqual(['⚓ Kedge']);
     expect(root.all((e) => e.text.includes('Today:')).length).toBe(0);
     expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
   });
