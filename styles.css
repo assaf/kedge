@@ -239,26 +239,36 @@
   color: #8892b0;
 }
 
-.chartroom-input,
-.chartroom-textarea {
+/**
+ * Fields follow the theme's own form colours. Hardcoding a white background
+ * left dark text on Obsidian's dark input background whenever the app's own
+ * `textarea` rule won specificity — which is what a dark theme does.
+ */
+.chartroom-modal .chartroom-input,
+.chartroom-modal .chartroom-textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 11px 13px;
   font-family: inherit;
   font-size: 0.95rem;
   line-height: 1.5;
-  color: #1a202c;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.15);
+  color: var(--text-normal);
+  background-color: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 9px;
   transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
-.chartroom-input:focus,
-.chartroom-textarea:focus {
+.chartroom-modal .chartroom-input::placeholder,
+.chartroom-modal .chartroom-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.chartroom-modal .chartroom-input:focus,
+.chartroom-modal .chartroom-textarea:focus {
   outline: none;
-  border-color: #4a90e2;
-  box-shadow: 0 0 0 3px rgba(74,144,226,0.18);
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
 .chartroom-search {
