@@ -721,12 +721,14 @@ var KedgeView = class extends import_obsidian.View {
     head.createEl("h2", { text: title });
     return head.createDiv({ cls: "kedge-actions" });
   }
-  /** "New letter: ⌘⇧L  ·  New step: ⌘⇧N", built from live bindings only. */
-  shortcutHints(entries) {
-    return entries.map(([label, id]) => {
-      const keys = this.hotkeyLabel(id);
-      return keys ? `${label}: ${keys}` : "";
-    }).filter(Boolean).join("  \xB7  ");
+  /** A dashboard action with its shortcut printed beside the label. */
+  actionButton(parent, label, commandId, onclick) {
+    const button = parent.createEl("button", { cls: "mod-clickable", text: label });
+    const keys = this.hotkeyLabel(commandId);
+    if (keys)
+      button.createSpan({ cls: "kedge-key", text: keys });
+    button.onclick = onclick;
+    return button;
   }
   /**
    * The command's effective binding, printed by Obsidian itself
@@ -750,12 +752,10 @@ var KedgeView = class extends import_obsidian.View {
     this.container.empty();
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "Kedge" });
-    const hints = this.shortcutHints([
-      ["New letter", "write-letter"],
-      ["New step", "create-next-step"]
-    ]);
-    if (hints)
-      header.createDiv({ cls: "kedge-meta", text: hints });
+    const dashboardKey = this.hotkeyLabel("open-dashboard");
+    if (dashboardKey) {
+      header.createDiv({ cls: "kedge-meta", text: `Open dashboard: ${dashboardKey}` });
+    }
     const steps = await loadNextSteps(app, settings.nextStepFolder);
     const pending = steps.filter((s) => s.status !== "done" && !isSnoozed(s));
     pending.sort(
@@ -783,8 +783,12 @@ var KedgeView = class extends import_obsidian.View {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
       empty.createDiv({ text: "No pending next steps." });
       const actions = empty.createDiv({ cls: "kedge-actions" });
-      const newBtn = actions.createEl("button", { cls: "mod-clickable", text: "New next step" });
-      newBtn.onclick = () => this.openNewStepModal();
+      this.actionButton(
+        actions,
+        "New next step",
+        "create-next-step",
+        () => this.openNewStepModal()
+      );
     }
     const letters = await loadLetters(app, settings.letterFolder);
     const arrived = letters.filter((l) => hasArrived(l)).sort((a, b) => b.sealDate.localeCompare(a.sealDate));
@@ -817,11 +821,12 @@ var KedgeView = class extends import_obsidian.View {
     }
     const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
     const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
-    const newLetterBtn = scheduledHead.createEl("button", {
-      cls: "mod-clickable",
-      text: "+ New letter"
-    });
-    newLetterBtn.onclick = () => this.openNewLetterModal();
+    this.actionButton(
+      scheduledHead,
+      "+ New letter",
+      "write-letter",
+      () => this.openNewLetterModal()
+    );
     if (scheduled.length > 0) {
       for (const letter of scheduled) {
         const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
@@ -847,8 +852,12 @@ var KedgeView = class extends import_obsidian.View {
     }
     const listSection = this.container.createDiv({ cls: "kedge-section" });
     const listActions = this.sectionHead(listSection, "Next steps");
-    const newStepBtn = listActions.createEl("button", { cls: "mod-clickable", text: "+ New step" });
-    newStepBtn.onclick = () => this.openNewStepModal();
+    this.actionButton(
+      listActions,
+      "+ New step",
+      "create-next-step",
+      () => this.openNewStepModal()
+    );
     const openSteps = steps.filter((s) => s.status !== "done");
     const activeSteps = openSteps.filter((s) => !isSnoozed(s));
     const snoozedSteps = openSteps.filter((s) => isSnoozed(s));
@@ -917,8 +926,12 @@ var KedgeView = class extends import_obsidian.View {
     const lessons = await loadLessons(app, settings.lessonFolder);
     const lessonSection = this.container.createDiv({ cls: "kedge-section" });
     const lessonActions = this.sectionHead(lessonSection, "Lessons");
-    const newLessonBtn = lessonActions.createEl("button", { cls: "mod-clickable", text: "+ New lesson" });
-    newLessonBtn.onclick = () => this.openNewLessonModal();
+    this.actionButton(
+      lessonActions,
+      "+ New lesson",
+      "create-lesson",
+      () => this.openNewLessonModal()
+    );
     const search = lessonSection.createEl("input", { cls: "kedge-search" });
     search.type = "search";
     search.placeholder = "Search your lessons";

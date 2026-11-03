@@ -81,15 +81,37 @@ describe('KedgeView.render', () => {
     expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
   });
 
-  test('the header lists a shortcut only when one is bound', async () => {
+  test('every bound shortcut shows on the control it belongs to', async () => {
     const { view, root } = makeView();
+    const keys: Record<string, string> = {
+      'kedge:open-dashboard': '⌘ ⇧ D',
+      'kedge:write-letter': '⌘ ⇧ M',
+      'kedge:create-next-step': '⌘ ⇧ N',
+      'kedge:create-lesson': '⌘ ⇧ L',
+    };
     (view.plugin.app as any).hotkeyManager = {
-      printHotkeyForCommand: (id: string) => (id === 'kedge:write-letter' ? '⌘ ⇧ L' : ''),
+      printHotkeyForCommand: (id: string) => keys[id] ?? '',
     };
     await view.render();
 
-    const meta = root.children[0].all((e) => e.hasClass('kedge-meta'));
-    expect(meta.map((m) => m.text)).toEqual(['New letter: ⌘ ⇧ L']);
+    const headerMeta = root.children[0].all((e) => e.hasClass('kedge-meta'));
+    expect(headerMeta.map((m) => m.text)).toEqual(['Open dashboard: ⌘ ⇧ D']);
+
+    const keyFor = (label: string) => {
+      const button = root.buttons().find((b) => b.text === label)!;
+      return button.all((e) => e.hasClass('kedge-key')).map((e) => e.text);
+    };
+    expect(keyFor('+ New step')).toEqual(['⌘ ⇧ N']);
+    expect(keyFor('+ New lesson')).toEqual(['⌘ ⇧ L']);
+    expect(keyFor('+ New letter')).toEqual(['⌘ ⇧ M']);
+  });
+
+  test('no keys are printed when nothing is bound', async () => {
+    const { view, root } = makeView();
+    await view.render();
+
+    expect(root.children[0].all((e) => e.hasClass('kedge-meta'))).toEqual([]);
+    expect(root.all((e) => e.hasClass('kedge-key'))).toEqual([]);
   });
 
   test('offers a New next step button when nothing is pending', async () => {
