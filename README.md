@@ -55,12 +55,13 @@ it comes back: quick picks of 1 month / 6 months / 1 year, or an exact date.
 A line under the field previews the return date ("Will come back on 3 May
 2027") before you seal it.
 
-The dashboard then has two letter sections. **Scheduled letters** lists
-everything still sealed, oldest return date first, each with Edit and Delete;
-editing reopens the same letter, body included, and changing the date
-reschedules it. **From past you** holds the letters whose date has arrived,
-each with "Reply to past me" (the reply is appended to the letter note as a
-dated `## Reply` section).
+The dashboard then has two letter sections. **Scheduled letters** is a compact
+list — one line per letter, title only, truncated with an ellipsis when long,
+with Edit and Delete on the right; the return date and written date sit in the
+row's tooltip. Editing reopens the same letter, body included, and changing the
+date reschedules it. **From past you** holds the letters whose date has
+arrived, each with "Reply to past me" (the reply is appended to the letter note
+as a dated `## Reply` section).
 
 Arrival is computed, never written: a `sealed` letter whose `seal_date` is
 today or earlier simply shows up. So on any given day you may see none, one,

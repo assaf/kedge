@@ -940,15 +940,11 @@ export class ChartroomView extends View {
     newLetterBtn.onclick = () => this.openNewLetterModal();
     if (scheduled.length > 0) {
       for (const letter of scheduled) {
-        const card = scheduledSection.createDiv({ cls: "chartroom-card chartroom-scheduled" });
-        const titleDiv = card.createDiv({ cls: "chartroom-card-title" });
-        titleDiv.createSpan({ text: letter.title });
-        titleDiv.createSpan({ cls: "seal-badge", text: `opens ${formatDate(letter.sealDate)}` });
-        const preview = letter.body.length > 180 ? `${letter.body.slice(0, 180)}…` : letter.body;
-        card.createDiv({ cls: "chartroom-letter-body", text: preview });
-        const meta = card.createDiv({ cls: "chartroom-meta" });
-        meta.createEl("span", { text: `Written ${letter.createdAt}` });
-        const actions = card.createDiv({ cls: "chartroom-actions" });
+        const row = scheduledSection.createDiv({ cls: "chartroom-letter-row" });
+        // full detail stays on hover; the list keeps to one line per letter
+        row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
+        row.createDiv({ cls: "chartroom-letter-row-title", text: letter.title });
+        const actions = row.createDiv({ cls: "chartroom-actions" });
         const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
         const deleteBtn = actions.createEl("button", {
           cls: "mod-clickable chartroom-danger",

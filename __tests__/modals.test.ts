@@ -438,18 +438,30 @@ describe('Snoozed next steps', () => {
 });
 
 describe('Future letters', () => {
-  test('scheduled letters are listed separately from arrived ones', async () => {
+  test('scheduled letters are one-line rows, separate from arrived ones', async () => {
     const { view, root } = makeCtx();
     await view.render();
 
-    const scheduled = section(root, 'Scheduled letters')
-      .all((e) => e.hasClass('chartroom-scheduled'));
-    expect(scheduled).toHaveLength(1);
-    expect(cardTitle(scheduled[0])).toBe('Dear me in a year');
-    expect(scheduled[0].buttonTexts()).toEqual(['Edit', 'Delete']);
-    expect(scheduled[0].all((e) => e.text === 'opens 1 Jan 2099')).toHaveLength(1);
+    const rows = section(root, 'Scheduled letters').all((e) =>
+      e.hasClass('chartroom-letter-row')
+    );
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
 
-    // it is not sitting in the arrived pile
+    // title only: no body, no meta, no card chrome
+    const title = row.all((e) => e.hasClass('chartroom-letter-row-title'));
+    expect(title.map((e) => e.text)).toEqual(['Dear me in a year']);
+    expect(row.all((e) => e.hasClass('chartroom-letter-body'))).toEqual([]);
+    expect(row.all((e) => e.hasClass('chartroom-meta'))).toEqual([]);
+    expect(row.all((e) => e.hasClass('chartroom-card'))).toEqual([]);
+
+    // the date is not printed, it sits in the row tooltip
+    expect(row.title).toBe('opens 1 Jan 2099 · written 2026-11-02');
+
+    // actions sit beside the title
+    expect(row.buttonTexts()).toEqual(['Edit', 'Delete']);
+
+    // and it is not in the arrived pile
     const arrived = section(root, 'From past you');
     expect(arrived.all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
     expect(arrived.all((e) => e.text === 'Dear future me').length).toBeGreaterThan(0);

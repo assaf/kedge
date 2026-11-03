@@ -90,8 +90,32 @@
   cursor: default;
 }
 
-.chartroom-card.chartroom-scheduled {
-  border-left: 3px solid #c9d6e6;
+.chartroom-letter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.chartroom-letter-row:last-child {
+  border-bottom: none;
+}
+
+.chartroom-letter-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1a202c;
+}
+
+.chartroom-letter-row .chartroom-actions {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .chartroom-card.chartroom-snoozed:hover {
