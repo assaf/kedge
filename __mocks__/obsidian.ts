@@ -47,6 +47,7 @@ export class El {
   empty() { this.children = []; }
   appendChild(c: El) { c.parent = this; this.children.push(c); return c; }
   focus() { /* no-op */ }
+  setText(text: string) { this.text = String(text); this.children = []; }
   setAttribute() { /* no-op */ }
   addEventListener(type: string, cb: (evt?: any) => any) {
     (this.listeners[type] ||= []).push(cb);

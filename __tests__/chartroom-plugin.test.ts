@@ -113,6 +113,9 @@ import {
   priorityLabel,
   priorityFromLabel,
   isSnoozed,
+  hasArrived,
+  addMonths,
+  formatDate,
   byOrder,
   PRIORITY_LABELS,
 } from '../main';
@@ -212,5 +215,29 @@ describe('Note builders', () => {
   test('appendReply does not double the blank line on a note ending in a newline', () => {
     const out = appendReply('body\n', 'reply', '2026-11-02');
     expect(out).toBe('body\n\n## Reply 2026-11-02\n\nreply\n');
+  });
+});
+
+describe('Letters', () => {
+  test('a sealed letter arrives on its date, without rewriting the note', () => {
+    const sealed = { status: 'sealed', sealDate: '2027-05-03' };
+    expect(hasArrived(sealed, '2026-11-02')).toBe(false);
+    expect(hasArrived(sealed, '2027-05-02')).toBe(false);
+    expect(hasArrived(sealed, '2027-05-03')).toBe(true);
+    expect(hasArrived(sealed, '2028-01-01')).toBe(true);
+    expect(hasArrived({ status: 'delivered', sealDate: '2099-01-01' }, '2026-11-02')).toBe(true);
+    expect(hasArrived({ status: 'opened', sealDate: '2099-01-01' }, '2026-11-02')).toBe(true);
+  });
+
+  test('addMonths clamps to the end of a shorter month', () => {
+    expect(addMonths(1, '2026-01-31')).toBe('2026-02-28');
+    expect(addMonths(1, '2028-01-31')).toBe('2028-02-29'); // leap year
+    expect(addMonths(6, '2026-11-02')).toBe('2027-05-02');
+    expect(addMonths(12, '2026-11-02')).toBe('2027-11-02');
+  });
+
+  test('formatDate reads like a card badge', () => {
+    expect(formatDate('2027-05-03')).toBe('3 May 2027');
+    expect(formatDate('not a date')).toBe('not a date');
   });
 });

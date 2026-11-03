@@ -24,10 +24,13 @@ __export(main_exports, {
   DEFAULT_SETTINGS: () => DEFAULT_SETTINGS,
   PRIORITY_LABELS: () => PRIORITY_LABELS,
   VIEW_TYPE_CHARTROOM: () => VIEW_TYPE_CHARTROOM,
+  addMonths: () => addMonths,
   appendReply: () => appendReply,
   applyOrder: () => applyOrder,
   byOrder: () => byOrder,
   default: () => ChartroomPlugin,
+  formatDate: () => formatDate,
+  hasArrived: () => hasArrived,
   idFromTitle: () => idFromTitle,
   isSnoozed: () => isSnoozed,
   lessonNote: () => lessonNote,
@@ -217,6 +220,41 @@ async function saveNote(app, path, content) {
 }
 function isSnoozed(step, today = nowStr()) {
   return step.status === "snoozed" && (!step.snoozeUntil || step.snoozeUntil > today);
+}
+function hasArrived(letter, today = nowStr()) {
+  if (letter.status === "delivered" || letter.status === "opened")
+    return true;
+  return letter.status === "sealed" && letter.sealDate <= today;
+}
+function addMonths(months, from = nowStr()) {
+  const [year, month, day] = from.split("-").map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const daysInMonth = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  target.setUTCDate(Math.min(day, daysInMonth));
+  return target.toISOString().slice(0, 10);
+}
+var MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+function formatDate(iso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match)
+    return iso;
+  const [, year, month, day] = match;
+  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 function byOrder(a, b) {
   if (a.order != null && b.order != null)
@@ -523,45 +561,81 @@ var ReplyModal = class extends import_obsidian.Modal {
     this.contentEl.empty();
   }
 };
+var QUICK_SCHEDULE = [
+  ["1 month", 1],
+  ["6 months", 6],
+  ["1 year", 12]
+];
 var LetterModal = class extends import_obsidian.Modal {
-  constructor(app, plugin, onDone) {
+  constructor(app, plugin, onDone, existing) {
     super(app);
     this.plugin = plugin;
     this.onDone = onDone;
+    this.existing = existing;
   }
   onOpen() {
     applyModalClass(this);
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Letter to future me" });
-    this.titleEl = textField(contentEl, "Title", { placeholder: "Dear future me\u2026" });
-    this.dateEl = textField(contentEl, "Deliver on", {
-      type: "date",
-      value: new Date(Date.now() + 180 * 864e5).toISOString().slice(0, 10),
-      // +6 months
-      hint: "The letter stays sealed until this date."
+    contentEl.createEl("h2", {
+      text: this.existing ? "Edit letter to future me" : "Letter to future me"
     });
+    this.titleEl = textField(contentEl, "Title", {
+      placeholder: "Dear future me\u2026",
+      value: this.existing?.title
+    });
+    const quick = fieldWrap(contentEl, "Bring it back in");
+    const chips = quick.createDiv({ cls: "chartroom-segmented" });
+    for (const [label, months] of QUICK_SCHEDULE) {
+      const chip = chips.createEl("button", { cls: "chartroom-segment", text: label });
+      chip.type = "button";
+      chip.onclick = () => {
+        this.dateEl.value = addMonths(months);
+        this.updatePreview();
+      };
+    }
+    this.dateEl = textField(contentEl, "Or pick a date", {
+      type: "date",
+      value: this.existing?.sealDate ?? addMonths(6)
+    });
+    this.dateEl.addEventListener("input", () => this.updatePreview());
     this.bodyEl = textareaField(contentEl, "Letter", {
       placeholder: "Write notes for your future self, not for an audience.",
       tall: true
     });
-    modalActions(contentEl, "Seal it", () => void this.save(), () => this.close());
+    if (this.existing)
+      this.bodyEl.value = this.existing.body;
+    this.previewEl = contentEl.createDiv({ cls: "chartroom-field-hint" });
+    this.updatePreview();
+    modalActions(
+      contentEl,
+      this.existing ? "Save" : "Seal it",
+      () => void this.save(),
+      () => this.close()
+    );
     this.titleEl.focus();
+  }
+  updatePreview() {
+    const date = this.dateEl.value.trim();
+    this.previewEl.setText(
+      date ? `Will come back on ${formatDate(date)}` : "Pick a date to bring it back."
+    );
   }
   async save() {
     const title = this.titleEl.value.trim() || "Untitled letter";
     const sealDate = this.dateEl.value.trim() || nowStr();
-    const id = idFromTitle(title) || `letter-${Date.now()}`;
+    const existing = this.existing;
+    const id = existing?.id ?? (idFromTitle(title) || `letter-${Date.now()}`);
     const { app, settings } = this.plugin;
-    const path = uniqueNotePath(app, settings.letterFolder, id);
+    const path = existing?.path ?? uniqueNotePath(app, settings.letterFolder, id);
     const fm = serializeFrontmatter({
       id,
       title,
-      status: "sealed",
+      status: existing?.status ?? "sealed",
       seal_date: sealDate,
-      created_at: nowStr()
+      created_at: existing?.createdAt ?? nowStr()
     });
     await saveNote(app, path, fm + this.bodyEl.value);
-    new import_obsidian.Notice(`Letter sealed. Returns ${sealDate}.`);
+    new import_obsidian.Notice(existing ? `Letter saved. Returns ${sealDate}.` : `Letter sealed. Returns ${sealDate}.`);
     this.close();
     await this.onDone();
   }
@@ -646,15 +720,16 @@ var ChartroomView = class extends import_obsidian.View {
       newBtn.onclick = () => this.openNewStepModal();
     }
     const letters = await loadLetters(app, settings.letterFolder);
-    const delivered = letters.filter((l) => l.status === "delivered" && l.sealDate <= nowStr());
+    const arrived = letters.filter((l) => hasArrived(l)).sort((a, b) => b.sealDate.localeCompare(a.sealDate));
+    const scheduled = letters.filter((l) => !hasArrived(l)).sort((a, b) => a.sealDate.localeCompare(b.sealDate));
     const pastSection = this.container.createDiv({ cls: "chartroom-section" });
     this.sectionHead(pastSection, "From past you");
-    if (delivered.length > 0) {
-      for (const letter of delivered) {
+    if (arrived.length > 0) {
+      for (const letter of arrived) {
         const card = pastSection.createDiv({ cls: "chartroom-card" });
         const titleDiv = card.createDiv({ cls: "chartroom-card-title" });
         titleDiv.createSpan({ text: letter.title });
-        titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${letter.sealDate}` });
+        titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
         card.createDiv({ cls: "chartroom-letter-body", text: letter.body });
         const meta = card.createDiv({ cls: "chartroom-meta" });
         meta.createEl("span", { text: `Written ${letter.createdAt}` });
@@ -664,6 +739,41 @@ var ChartroomView = class extends import_obsidian.View {
       }
     } else {
       pastSection.createDiv({ cls: "chartroom-empty", text: "No letters have arrived yet." });
+    }
+    const scheduledSection = this.container.createDiv({ cls: "chartroom-section" });
+    const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
+    const newLetterBtn = scheduledHead.createEl("button", {
+      cls: "mod-clickable",
+      text: "+ New letter"
+    });
+    newLetterBtn.onclick = () => this.openNewLetterModal();
+    if (scheduled.length > 0) {
+      for (const letter of scheduled) {
+        const card = scheduledSection.createDiv({ cls: "chartroom-card chartroom-scheduled" });
+        const titleDiv = card.createDiv({ cls: "chartroom-card-title" });
+        titleDiv.createSpan({ text: letter.title });
+        titleDiv.createSpan({ cls: "seal-badge", text: `opens ${formatDate(letter.sealDate)}` });
+        const preview = letter.body.length > 180 ? `${letter.body.slice(0, 180)}\u2026` : letter.body;
+        card.createDiv({ cls: "chartroom-letter-body", text: preview });
+        const meta = card.createDiv({ cls: "chartroom-meta" });
+        meta.createEl("span", { text: `Written ${letter.createdAt}` });
+        const actions = card.createDiv({ cls: "chartroom-actions" });
+        const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
+        const deleteBtn = actions.createEl("button", {
+          cls: "mod-clickable chartroom-danger",
+          text: "Delete"
+        });
+        editBtn.onclick = () => this.openEditLetterModal(letter);
+        deleteBtn.onclick = async () => {
+          await this.deleteLetter(letter);
+          await this.render();
+        };
+      }
+    } else {
+      scheduledSection.createDiv({
+        cls: "chartroom-empty",
+        text: "Nothing scheduled. Write a letter and pick when it comes back."
+      });
     }
     const listSection = this.container.createDiv({ cls: "chartroom-section" });
     const listActions = this.sectionHead(listSection, "Next steps");
@@ -786,6 +896,12 @@ var ChartroomView = class extends import_obsidian.View {
   openEditStepModal(step) {
     new NextStepModal(this.app, this.plugin, () => this.refresh(), step).open();
   }
+  openNewLetterModal() {
+    new LetterModal(this.app, this.plugin, () => this.refresh()).open();
+  }
+  openEditLetterModal(letter) {
+    new LetterModal(this.app, this.plugin, () => this.refresh(), letter).open();
+  }
   // ---- ordering --------------------------------------------------------
   sortSteps(list) {
     return list.slice().sort(
@@ -811,6 +927,15 @@ var ChartroomView = class extends import_obsidian.View {
     if (file instanceof import_obsidian.TFile) {
       await this.plugin.app.vault.delete(file);
       new import_obsidian.Notice("Lesson deleted.");
+    }
+  }
+  async deleteLetter(letter) {
+    if (!window.confirm(`Delete the letter \u201C${letter.title}\u201D?`))
+      return;
+    const file = this.plugin.app.vault.getAbstractFileByPath(letter.path);
+    if (file instanceof import_obsidian.TFile) {
+      await this.plugin.app.vault.delete(file);
+      new import_obsidian.Notice("Letter deleted.");
     }
   }
   async markStepDone(id) {

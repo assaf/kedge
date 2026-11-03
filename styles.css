@@ -90,6 +90,10 @@
   cursor: default;
 }
 
+.chartroom-card.chartroom-scheduled {
+  border-left: 3px solid #c9d6e6;
+}
+
 .chartroom-card.chartroom-snoozed:hover {
   transform: none;
   box-shadow: none;

@@ -48,6 +48,26 @@ again, so it rejoins the active list on its own.
 `status: working` (shown as "working on it") and clears `snooze_until`. The
 note itself is opened from the file explorer when you need it.
 
+## Letters to your future self
+
+"Write letter to future me" opens a modal with a title, the letter, and when
+it comes back: quick picks of 1 month / 6 months / 1 year, or an exact date.
+A line under the field previews the return date ("Will come back on 3 May
+2027") before you seal it.
+
+The dashboard then has two letter sections. **Scheduled letters** lists
+everything still sealed, oldest return date first, each with Edit and Delete;
+editing reopens the same letter, body included, and changing the date
+reschedules it. **From past you** holds the letters whose date has arrived,
+each with "Reply to past me" (the reply is appended to the letter note as a
+dated `## Reply` section).
+
+Arrival is computed, never written: a `sealed` letter whose `seal_date` is
+today or earlier simply shows up. So on any given day you may see none, one,
+or several letters arrive, and the notes themselves are never rewritten just
+by opening the dashboard. The dashboard only counts as arrived; it does not
+flip the status.
+
 ## Data model (all stored as markdown notes in your vault)
 
 - `Chartroom/Letters/*.md` — frontmatter: `id`, `title`, `status` (sealed/delivered/opened), `seal_date`, `created_at`

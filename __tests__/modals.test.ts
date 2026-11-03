@@ -1,4 +1,4 @@
-import { ChartroomView, DEFAULT_SETTINGS, nowStr } from '../main';
+import { ChartroomView, DEFAULT_SETTINGS, nowStr, addMonths } from '../main';
 import { TFile, El, notices, openedModals } from 'obsidian';
 
 /** Lets the fire-and-forget `void this.save()` handlers finish: every vault
@@ -20,6 +20,7 @@ const STEP = '---\nid: call-the-dentist\ntitle: Call the dentist\nstatus: pendin
 const STEP2 = '---\nid: renew-passport\ntitle: Renew passport\nstatus: pending\npriority: 2\ncreated_at: 2026-11-02\n---\n';
 const STEP_SNOOZED = '---\nid: file-taxes\ntitle: File taxes\nstatus: snoozed\npriority: 2\nsnooze_until: 2099-01-01\ncreated_at: 2026-11-01\n---\n';
 const LETTER = '---\nid: dear-future-me\ntitle: Dear future me\nstatus: delivered\nseal_date: 2026-10-01\ncreated_at: 2026-04-01\n---\nSleep more.';
+const LETTER_LATER = '---\nid: dear-me-in-a-year\ntitle: Dear me in a year\nstatus: sealed\nseal_date: 2099-01-01\ncreated_at: 2026-11-02\n---\nDid the stall make its first thousand?';
 const LESSON = '---\nid: ship-it\nclaim: Ship the boring version first\ncategory: product\nweek: 2026-10-20\ncreated_at: 2026-10-20\n---\n';
 
 function makeCtx() {
@@ -28,6 +29,7 @@ function makeCtx() {
     noteFile('Chartroom/Next-Steps/renew-passport.md', STEP2),
     noteFile('Chartroom/Next-Steps/file-taxes.md', STEP_SNOOZED),
     noteFile('Chartroom/Letters/dear-future-me.md', LETTER),
+    noteFile('Chartroom/Letters/dear-me-in-a-year.md', LETTER_LATER),
     noteFile('Chartroom/Lessons/ship-it.md', LESSON),
   ];
   const created: Array<{ path: string; content: string }> = [];
@@ -245,7 +247,7 @@ describe('Lessons', () => {
     const { view, root, deleted } = makeCtx();
     await view.render();
 
-    click(root, 'Delete');
+    click(section(root, 'Lessons'), 'Delete');
     await flush();
 
     expect(deleted).toEqual(['Chartroom/Lessons/ship-it.md']);
@@ -432,5 +434,85 @@ describe('Snoozed next steps', () => {
     const other = afterCards.find((c) => cardTitle(c) === 'Renew passport')!;
     expect(working.buttons()[0].disabled).toBe(true);
     expect(other.buttons()[0].disabled).toBe(false);
+  });
+});
+
+describe('Future letters', () => {
+  test('scheduled letters are listed separately from arrived ones', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    const scheduled = section(root, 'Scheduled letters')
+      .all((e) => e.hasClass('chartroom-scheduled'));
+    expect(scheduled).toHaveLength(1);
+    expect(cardTitle(scheduled[0])).toBe('Dear me in a year');
+    expect(scheduled[0].buttonTexts()).toEqual(['Edit', 'Delete']);
+    expect(scheduled[0].all((e) => e.text === 'opens 1 Jan 2099')).toHaveLength(1);
+
+    // it is not sitting in the arrived pile
+    const arrived = section(root, 'From past you');
+    expect(arrived.all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
+    expect(arrived.all((e) => e.text === 'Dear future me').length).toBeGreaterThan(0);
+  });
+
+  test('editing a letter moves it to arrived when its date passes', async () => {
+    const { view, root, modified } = makeCtx();
+    await view.render();
+
+    click(section(root, 'Scheduled letters'), 'Edit');
+    const modal = lastModal();
+    const inputs = modal.contentEl.ofTag('input');
+    expect(inputs[0].value).toBe('Dear me in a year'); // title prefilled
+    expect(inputs[1].value).toBe('2099-01-01'); // date prefilled
+
+    inputs[1].value = '2026-10-01'; // reschedule into the past
+    click(modal.contentEl, 'Save');
+    await flush();
+
+    expect(modified[0].path).toBe('Chartroom/Letters/dear-me-in-a-year.md');
+    expect(modified[0].content).toContain('seal_date: 2026-10-01');
+    expect(modified[0].content).toContain('id: dear-me-in-a-year');
+    expect(modified[0].content).toContain('created_at: 2026-11-02');
+    expect(modified[0].content).toContain('status: sealed');
+
+    const arrived = section(root, 'From past you');
+    expect(arrived.all((e) => e.text === 'Dear me in a year').length).toBeGreaterThan(0);
+    expect(
+      section(root, 'Scheduled letters').all((e) => e.hasClass('chartroom-scheduled'))
+    ).toHaveLength(0);
+  });
+
+  test('delete removes a scheduled letter', async () => {
+    const { view, root, deleted } = makeCtx();
+    await view.render();
+
+    click(section(root, 'Scheduled letters'), 'Delete');
+    await flush();
+
+    expect(deleted).toEqual(['Chartroom/Letters/dear-me-in-a-year.md']);
+    expect(section(root, 'Scheduled letters').all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
+  });
+
+  test('composing a letter takes a quick schedule and seals with that date', async () => {
+    const { view, root, created } = makeCtx();
+    await view.render();
+
+    click(section(root, 'Scheduled letters'), '+ New letter');
+    const modal = lastModal();
+    click(modal.contentEl, '1 month');
+
+    const inputs = modal.contentEl.ofTag('input');
+    expect(inputs[1].value).toBe(addMonths(1)); // chip wrote the date field
+    expect(modal.contentEl.all((e) => e.text.startsWith('Will come back on')).length).toBe(1);
+
+    inputs[0].value = 'Dear me in a month';
+    modal.contentEl.ofTag('textarea')[0].value = 'Did it work?';
+    click(modal.contentEl, 'Seal it');
+    await flush();
+
+    expect(created[0].path).toBe('Chartroom/Letters/dear-me-in-a-month.md');
+    expect(created[0].content).toContain(`seal_date: ${addMonths(1)}`);
+    expect(created[0].content).toContain('status: sealed');
+    expect(created[0].content).toContain('Did it work?');
   });
 });

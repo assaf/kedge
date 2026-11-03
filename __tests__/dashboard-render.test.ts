@@ -83,7 +83,7 @@ describe('ChartroomView.render', () => {
     await view.render();
 
     const badges = root.all((e) => e.tag === 'span' && e.cls.includes('seal-badge'));
-    expect(badges.map((b) => b.text)).toEqual(['sealed 2026-10-01']);
+    expect(badges.map((b) => b.text)).toEqual(['sealed 1 Oct 2026']);
     const leaked = root.all((e) => e.text.includes('<span'));
     expect(leaked).toEqual([]);
   });
