@@ -2,7 +2,7 @@
 
 Next best step · Letters to/from future self · Snoozable next steps · One-line lessons.
 
-![](public/image.png)
+![Kedge dashboard: the next best step, and a letter from past you](public/image.png)
 
 ## Install
 
@@ -51,10 +51,14 @@ too — best match first, with category matches ranked below claim matches.
 Clearing the box restores the full list; ordering by drag is only wired up
 while the list is unfiltered, since a filtered order has no meaning.
 
+![The lessons list with its fuzzy search field](public/lessons.png)
+
 Snoozed next steps drop to their own dimmed group at the bottom of the list
 and are not draggable. Only "Do" is enabled on them; Edit / Snooze / Done are
 shown greyed out and inert. A snooze whose date has passed counts as due
 again, so it rejoins the active list on its own.
+
+![Next steps: a working step with Do disabled, and a dimmed snoozed step](public/steps.png)
 
 "Do" never opens a tab — on a snoozed step or an active one it sets
 `status: working` (shown as "working on it") and clears `snooze_until`. The
