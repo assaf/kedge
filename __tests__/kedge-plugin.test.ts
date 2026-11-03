@@ -23,9 +23,15 @@ describe('Plugin registration and command registration', () => {
     plugin.settings = { ...DEFAULT_SETTINGS };
     await (plugin as any).onload();
 
-    const openCmd = registeredCommands.find(c => c?.hotkeys?.[0]?.key === 'M');
-    expect(openCmd).toBeDefined();
-    expect(openCmd.id).toBe('open-dashboard');
+    const bound = registeredCommands
+      .filter((c) => c?.hotkeys?.length)
+      .map((c) => [c.id, c.hotkeys[0].key]);
+    expect(Object.fromEntries(bound)).toEqual({
+      'open-dashboard': 'D',
+      'write-letter': 'M',
+      'create-next-step': 'N',
+      'create-lesson': 'L',
+    });
 
     // the tab and reload twins were the same call; they must stay deleted
     const ids = registeredCommands.map((c) => c.id);

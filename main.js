@@ -1118,7 +1118,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "open-dashboard",
       name: "Open dashboard",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "D" }],
       callback: async () => {
         await this.activateDashboard();
       }
@@ -1133,7 +1133,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "write-letter",
       name: "Write letter to future me",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
       callback: async () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       }
@@ -1149,6 +1149,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "create-lesson",
       name: "Create lesson",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
       callback: async () => {
         new LessonModal(this.app, this, () => this.refreshDashboards()).open();
       }
