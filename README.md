@@ -1,10 +1,22 @@
-# kedge
+# Kedge
 
-obsidian plugin i wrote for myself. one next step, lessons, letters to future me. all markdown in the vault.
+> /kĕj/ _(noun)_
+>
+> A small [anchor](https://duckduckgo.com/?q=anchor+definition\&ia=definition) used for warping a vessel; also called a kedge anchor.
+
+I wrote this Obsidian plugin to help keep myself on track. Will it work? I don’t know yet, going to run it for a few weeks to see what happens.
+
+It shows me the next step I should take. These are like a to-do list, but with some order of priority, and you can drag & drop to sort them.
+
+I can write letters to my future self. Sometimes I come up with ideas but I won’t remember them a week from now, or even a month from now. So I write it today, seal it for a future date, and will get reminded later.
+
+And I can save lessons for future reference. Things I learned that work well, or don’t work well, or whatever it is I need to remind myself in the future.
+
+By organizing into next steps, future letters, and lessons, I think I captured how I think and process information. It’s less about the feature, and more about the User Experience meeting my brain’s operating system.
 
 ![kedge](public/image.png)
 
-## install
+## Install Kedge
 
 ```
 pnpm install && pnpm build
@@ -12,11 +24,17 @@ pnpm install && pnpm build
 
 copy `main.js`, `manifest.json`, `styles.css` to `<vault>/.obsidian/plugins/kedge/` and enable it in settings.
 
-## keys
+## Keyboard shortcuts
 
-cmd+shift+d dashboard, cmd+shift+m letter, cmd+shift+n next step, cmd+shift+l lesson. the sidebar one has no key, it's in the palette.
+`cmd+shift+d` Open dashboard
 
-## what happened when
+`cmd+shift+m` Write a new future letter
+
+`cmd+shift+n` Add next step
+
+`cmd+shift+l` Save alesson
+
+## Changelog
 
 - 2026-11-03: sidebar command. obsidian won't pin a tab, so that's the closest thing to keeping it on screen.
 - 2026-11-02: snoozed steps moved into their own grey group at the bottom with the buttons dead except do. also took the date and the fake shortcuts out of the header. they were never bound to anything.
@@ -26,14 +44,14 @@ cmd+shift+d dashboard, cmd+shift+m letter, cmd+shift+n next step, cmd+shift+l le
 - 2026-10-29: lesson search. fuzzy, `shbv` finds "Ship the boring version first".
 - 2026-10-28: first commit.
 
-## tests
+## Running tests
 
-pnpm test typechecks, then runs jest against a mock obsidian i wrote by hand. pnpm smoke boots a throwaway vault in real obsidian, runs the command, checks the view is actually there. five seconds.
+`pnpm test` typechecks, then runs jest against a mock Obsidian API.
 
-the mock has a `workspace.getLeaves` that the real api doesn't. the suite was green for a while while the plugin wouldn't open at all. that's why smoke exists.
+`pnpm smoke` boots a throwaway vault in real Obsidian, runs the command, checks the view is actually there. Should complete in just five seconds.
 
-drag and drop and anything visual: still untested.
+## Obsidian files
 
-## files
+`Kedge/Letters/`, `Kedge/Next-Steps/`, `Kedge/Lessons/`. 
 
-`Kedge/Letters/`, `Kedge/Next-Steps/`, `Kedge/Lessons/`. frontmatter fields are `id`, `title` or `claim`, `status`, `priority`, `snooze_until`, `seal_date`, `week`, `order`, `created_at`, whichever apply.
+Frontmatter fields are `id`, `title` or `claim`, `status`, `priority`, `snooze_until`, `seal_date`, `week`, `order`, `created_at`, whichever apply.
