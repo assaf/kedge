@@ -25,11 +25,12 @@ describe('Plugin registration and command registration', () => {
 
     const openCmd = registeredCommands.find(c => c?.hotkeys?.[0]?.key === 'M');
     expect(openCmd).toBeDefined();
-    expect(openCmd.hotkeys[0].key).toBe('M');
+    expect(openCmd.id).toBe('open-dashboard');
 
-    const tabCmd = registeredCommands.find(c => c?.hotkeys?.[0]?.key === 'T');
-    expect(tabCmd).toBeDefined();
-    expect(tabCmd.hotkeys[0].key).toBe('T');
+    // the tab and reload twins were the same call; they must stay deleted
+    const ids = registeredCommands.map((c) => c.id);
+    expect(ids).not.toContain('open-dashboard-tab');
+    expect(ids).not.toContain('reload-dashboard');
   });
 
   test('registers the sidebar command', async () => {
@@ -113,19 +114,6 @@ describe('activateDashboard', () => {
   });
 });
 
-describe('reloadDashboard', () => {
-  test('re-registers view and opens leaf', async () => {
-    const leaf = new WorkspaceLeaf();
-    leaf.setViewState = jest.fn(async () => {});
-
-    const plugin = new KedgePlugin() as any;
-    plugin.app = { workspace: new Workspace([leaf]) };
-    plugin.settings = { ...DEFAULT_SETTINGS };
-
-    await (plugin as any).reloadDashboard();
-    expect(leaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_KEDGE, state: {} });
-  });
-});
 
 import { idFromTitle, parseFrontmatter, serializeFrontmatter } from '../main';
 

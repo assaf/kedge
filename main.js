@@ -1124,31 +1124,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
-      id: "reload-dashboard",
-      name: "Reload dashboard",
-      callback: async () => {
-        await this.reloadDashboard();
-      }
-    });
-    this.addCommand({
-      id: "open-dashboard-tab",
-      name: "Open dashboard in tab",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "T" }],
-      callback: async () => {
-        try {
-          const leaf = this.getTargetLeaf();
-          if (!leaf) {
-            new import_obsidian.Notice("Kedge tab: no leaf available");
-            return;
-          }
-          await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-          this.app.workspace.revealLeaf(leaf);
-        } catch (err) {
-          new import_obsidian.Notice("Kedge tab failed: " + err.message);
-        }
-      }
-    });
-    this.addCommand({
       id: "open-dashboard-sidebar",
       name: "Open dashboard in the sidebar",
       callback: async () => {
@@ -1227,20 +1202,6 @@ ${err.stack}` : String(err);
     } catch (err) {
       new import_obsidian.Notice("Kedge sidebar failed: " + err.message);
       console.error("Kedge sidebar failed:", err);
-    }
-  }
-  async reloadDashboard() {
-    try {
-      const leaf = this.getTargetLeaf();
-      if (!leaf) {
-        new import_obsidian.Notice("Kedge reload: no open leaf");
-        return;
-      }
-      await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
-    } catch (err) {
-      new import_obsidian.Notice("Kedge reload failed: " + err.message);
-      console.error("Kedge reload failed:", err);
     }
   }
   async loadSettings() {

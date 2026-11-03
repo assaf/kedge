@@ -1391,28 +1391,8 @@ export default class KedgePlugin extends Plugin {
         await this.activateDashboard();
       },
     });
-    // reopens the dashboard (use if the UI is stale or blank)
-    this.addCommand({
-      id: "reload-dashboard",
-      name: "Reload dashboard",
-      callback: async () => {
-        await this.reloadDashboard();
-      },
-    });
-
-    this.addCommand({
-      id: "open-dashboard-tab",
-      name: "Open dashboard in tab",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "T" }],
-      callback: async () => {
-        try {
-          const leaf = this.getTargetLeaf();
-          if (!leaf) { new Notice("Kedge tab: no leaf available"); return; }
-          await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-          this.app.workspace.revealLeaf(leaf);
-        } catch (err) { new Notice("Kedge tab failed: " + (err as Error).message); }
-      },
-    });
+    // No "open in tab" / "reload" twins: opening an existing Kedge leaf
+    // re-renders it, so all three were the same call.
     this.addCommand({
       id: "open-dashboard-sidebar",
       name: "Open dashboard in the sidebar",
@@ -1494,18 +1474,6 @@ export default class KedgePlugin extends Plugin {
     } catch (err) {
       new Notice("Kedge sidebar failed: " + (err as Error).message);
       console.error("Kedge sidebar failed:", err);
-    }
-  }
-
-  async reloadDashboard(): Promise<void> {
-    try {
-      const leaf = this.getTargetLeaf();
-      if (!leaf) { new Notice("Kedge reload: no open leaf"); return; }
-      await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
-    } catch (err) {
-      new Notice("Kedge reload failed: " + (err as Error).message);
-      console.error("Kedge reload failed:", err);
     }
   }
 
