@@ -1,4 +1,4 @@
-# Kedge
+# ⚓ Kedge
 
 > /kĕj/ _(noun)_
 >
