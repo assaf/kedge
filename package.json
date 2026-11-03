@@ -12,14 +12,15 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^18.19.130",
-    "esbuild": "^0.19.12",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
     "jest": "^30.5.2",
-    "obsidian": "latest",
+    "obsidian": "^1.14.4",
     "ts-jest": "^29.4.15",
     "typescript": "^5.9.3"
   },
   "allowScripts": {
-    "@parcel/watcher@2.6.0": true
+    "@parcel/watcher@2.6.0": true,
+    "esbuild@0.28.2": true
   }
 }

@@ -68,14 +68,12 @@ function priorityFromLabel(label) {
 }
 function parseFrontmatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---/);
-  if (!match)
-    return {};
+  if (!match) return {};
   const block = match[1];
   const obj = {};
   for (const line of block.split("\n")) {
     const idx = line.indexOf(":");
-    if (idx === -1)
-      continue;
+    if (idx === -1) continue;
     const key = line.slice(0, idx).trim();
     const val = line.slice(idx + 1).trim().replace(/^"|"$/g, "");
     obj[key] = val;
@@ -98,10 +96,8 @@ function nextStepNote(title, priority, existing, date = nowStr()) {
     priority,
     created_at: existing?.createdAt ?? date
   };
-  if (existing?.snoozeUntil)
-    fm.snooze_until = existing.snoozeUntil;
-  if (existing?.order != null)
-    fm.order = existing.order;
+  if (existing?.snoozeUntil) fm.snooze_until = existing.snoozeUntil;
+  if (existing?.order != null) fm.order = existing.order;
   return { id, content: serializeFrontmatter(fm) };
 }
 function lessonNote(claim, category, existing, date = nowStr()) {
@@ -148,12 +144,10 @@ async function loadLetters(app, folder) {
   const files = await readAllMarkdown(app);
   const letters = [];
   for (const f of files) {
-    if (!f.path.startsWith(folder))
-      continue;
+    if (!f.path.startsWith(folder)) continue;
     const text = await app.vault.cachedRead(f);
     const fm = parseFrontmatter(text);
-    if (!fm.status)
-      continue;
+    if (!fm.status) continue;
     letters.push({
       id: fm.id ?? idFromTitle(f.basename),
       title: fm.title ?? f.basename,
@@ -170,12 +164,10 @@ async function loadNextSteps(app, folder) {
   const files = await readAllMarkdown(app);
   const steps = [];
   for (const f of files) {
-    if (!f.path.startsWith(folder))
-      continue;
+    if (!f.path.startsWith(folder)) continue;
     const text = await app.vault.cachedRead(f);
     const fm = parseFrontmatter(text);
-    if (!fm.status)
-      continue;
+    if (!fm.status) continue;
     steps.push({
       id: fm.id ?? idFromTitle(f.basename),
       title: fm.title ?? f.basename,
@@ -193,12 +185,10 @@ async function loadLessons(app, folder) {
   const files = await readAllMarkdown(app);
   const lessons = [];
   for (const f of files) {
-    if (!f.path.startsWith(folder))
-      continue;
+    if (!f.path.startsWith(folder)) continue;
     const text = await app.vault.cachedRead(f);
     const fm = parseFrontmatter(text);
-    if (!fm.claim)
-      continue;
+    if (!fm.claim) continue;
     lessons.push({
       id: fm.id ?? idFromTitle(f.basename),
       claim: fm.claim,
@@ -224,8 +214,7 @@ function isSnoozed(step, today = nowStr()) {
   return step.status === "snoozed" && (!step.snoozeUntil || step.snoozeUntil > today);
 }
 function hasArrived(letter, today = nowStr()) {
-  if (letter.status === "delivered" || letter.status === "opened")
-    return true;
+  if (letter.status === "delivered" || letter.status === "opened") return true;
   return letter.status === "sealed" && letter.sealDate <= today;
 }
 function addMonths(months, from = nowStr()) {
@@ -253,15 +242,13 @@ var MONTHS = [
 ];
 function formatDate(iso) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match)
-    return iso;
+  if (!match) return iso;
   const [, year, month, day] = match;
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 function fuzzyScore(text, query) {
   const needle = query.trim().toLowerCase();
-  if (!needle)
-    return 0;
+  if (!needle) return 0;
   const haystack = text.toLowerCase();
   const direct = haystack.indexOf(needle);
   if (direct !== -1) {
@@ -273,13 +260,10 @@ function fuzzyScore(text, query) {
   let previous = -2;
   for (const char of needle) {
     const found = haystack.indexOf(char, from);
-    if (found === -1)
-      return -1;
+    if (found === -1) return -1;
     score += 10;
-    if (found === previous + 1)
-      score += 5;
-    if (found === 0 || /[\s\-_/]/.test(haystack[found - 1]))
-      score += 5;
+    if (found === previous + 1) score += 5;
+    if (found === 0 || /[\s\-_/]/.test(haystack[found - 1])) score += 5;
     score -= Math.min(found - from, 5);
     previous = found;
     from = found + 1;
@@ -287,8 +271,7 @@ function fuzzyScore(text, query) {
   return score;
 }
 function filterLessons(lessons, query) {
-  if (!query.trim())
-    return lessons;
+  if (!query.trim()) return lessons;
   return lessons.map((lesson) => {
     const claim = fuzzyScore(lesson.claim, query);
     const category = fuzzyScore(lesson.category ?? "", query);
@@ -297,27 +280,22 @@ function filterLessons(lessons, query) {
   }).filter((entry) => entry.score >= 0).sort((a, b) => b.score - a.score).map((entry) => entry.lesson);
 }
 function byOrder(a, b) {
-  if (a.order != null && b.order != null)
-    return a.order - b.order;
-  if (a.order != null)
-    return -1;
-  if (b.order != null)
-    return 1;
+  if (a.order != null && b.order != null) return a.order - b.order;
+  if (a.order != null) return -1;
+  if (b.order != null) return 1;
   return 0;
 }
 async function applyOrder(app, folder, orderedIds) {
   const files = await readAllMarkdown(app);
   const byId = /* @__PURE__ */ new Map();
   for (const f of files) {
-    if (!f.path.startsWith(folder))
-      continue;
+    if (!f.path.startsWith(folder)) continue;
     const fm = parseFrontmatter(await app.vault.cachedRead(f));
     byId.set(fm.id ?? idFromTitle(f.basename), f);
   }
   for (let i = 0; i < orderedIds.length; i++) {
     const file = byId.get(orderedIds[i]);
-    if (!file)
-      continue;
+    if (!file) continue;
     const text = await app.vault.cachedRead(file);
     const fm = parseFrontmatter(text);
     fm.order = i + 1;
@@ -340,8 +318,7 @@ function wireReorder(items, onReorder) {
       el.removeClass("kedge-dragging");
     });
     el.addEventListener("dragover", (evt) => {
-      if (!dragId || dragId === item.id)
-        return;
+      if (!dragId || dragId === item.id) return;
       evt?.preventDefault?.();
       el.addClass("kedge-drop-target");
     });
@@ -350,8 +327,7 @@ function wireReorder(items, onReorder) {
       evt?.preventDefault?.();
       el.removeClass("kedge-drop-target");
       const moved = dragId ?? evt?.dataTransfer?.getData?.("text/plain") ?? null;
-      if (!moved || moved === item.id || !ids.includes(moved))
-        return;
+      if (!moved || moved === item.id || !ids.includes(moved)) return;
       const next = ids.filter((id) => id !== moved);
       next.splice(next.indexOf(item.id), 0, moved);
       void onReorder(next);
@@ -371,10 +347,8 @@ function textField(parent, label, opts = {}) {
   const input = wrap.createEl("input", { cls: "kedge-input" });
   input.type = opts.type ?? "text";
   input.placeholder = opts.placeholder ?? "";
-  if (opts.value)
-    input.value = opts.value;
-  if (opts.hint)
-    fieldHint(wrap, opts.hint);
+  if (opts.value) input.value = opts.value;
+  if (opts.hint) fieldHint(wrap, opts.hint);
   return input;
 }
 function textareaField(parent, label, opts = {}) {
@@ -383,8 +357,7 @@ function textareaField(parent, label, opts = {}) {
     cls: opts.tall ? "kedge-textarea kedge-textarea-tall" : "kedge-textarea"
   });
   ta.placeholder = opts.placeholder ?? "";
-  if (opts.hint)
-    fieldHint(wrap, opts.hint);
+  if (opts.hint) fieldHint(wrap, opts.hint);
   return ta;
 }
 function segmentedField(parent, label, options, value, hint) {
@@ -394,21 +367,17 @@ function segmentedField(parent, label, options, value, hint) {
   const buttons = options.map((option) => {
     const button = group.createEl("button", { cls: "kedge-segment", text: option });
     button.type = "button";
-    if (option === value)
-      button.addClass("is-active");
+    if (option === value) button.addClass("is-active");
     button.onclick = () => {
       current = option;
       for (const other of buttons) {
-        if (other === button)
-          other.addClass("is-active");
-        else
-          other.removeClass("is-active");
+        if (other === button) other.addClass("is-active");
+        else other.removeClass("is-active");
       }
     };
     return button;
   });
-  if (hint)
-    fieldHint(wrap, hint);
+  if (hint) fieldHint(wrap, hint);
   return { getValue: () => current };
 }
 function modalActions(parent, primaryLabel, onPrimary, onCancel) {
@@ -447,8 +416,7 @@ var NextStepModal = class extends import_obsidian.Modal {
       priorityLabel(this.existing?.priority ?? 3)
     );
     this.titleEl.addEventListener("keydown", (evt) => {
-      if (evt.key === "Enter")
-        void this.save();
+      if (evt.key === "Enter") void this.save();
     });
     modalActions(
       contentEl,
@@ -515,8 +483,7 @@ var LessonModal = class extends import_obsidian.Modal {
       value: this.existing?.category
     });
     this.claimEl.addEventListener("keydown", (evt) => {
-      if (evt.key === "Enter")
-        void this.save();
+      if (evt.key === "Enter") void this.save();
     });
     modalActions(
       contentEl,
@@ -642,8 +609,7 @@ var LetterModal = class extends import_obsidian.Modal {
       placeholder: "Write notes for your future self, not for an audience.",
       tall: true
     });
-    if (this.existing)
-      this.bodyEl.value = this.existing.body;
+    if (this.existing) this.bodyEl.value = this.existing.body;
     this.previewEl = contentEl.createDiv({ cls: "kedge-field-hint" });
     this.updatePreview();
     modalActions(
@@ -736,8 +702,7 @@ var KedgeView = class extends import_obsidian.View {
    */
   hotkeyLabel(commandId) {
     const manager = this.plugin.app?.hotkeyManager;
-    if (typeof manager?.printHotkeyForCommand !== "function")
-      return "";
+    if (typeof manager?.printHotkeyForCommand !== "function") return "";
     const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
     try {
       return String(manager.printHotkeyForCommand(fullId) ?? "").trim();
@@ -756,8 +721,7 @@ var KedgeView = class extends import_obsidian.View {
       ["New step", "create-next-step"],
       ["New lesson", "create-lesson"]
     ]);
-    if (hints)
-      header.createDiv({ cls: "kedge-meta", text: hints });
+    if (hints) header.createDiv({ cls: "kedge-meta", text: hints });
     const steps = await loadNextSteps(app, settings.nextStepFolder);
     const pending = steps.filter((s) => s.status !== "done" && !isSnoozed(s));
     pending.sort(
@@ -952,10 +916,8 @@ var KedgeView = class extends import_obsidian.View {
       head.createSpan({ cls: "kedge-grip", text: "\u283F" });
       head.createSpan({ text: lesson.claim });
       const meta = card.createDiv({ cls: "kedge-meta" });
-      if (lesson.category)
-        meta.createEl("span", { text: lesson.category });
-      if (lesson.week)
-        meta.createEl("span", { text: ` \xB7 ${lesson.week}` });
+      if (lesson.category) meta.createEl("span", { text: lesson.category });
+      if (lesson.week) meta.createEl("span", { text: ` \xB7 ${lesson.week}` });
       const actions = card.createDiv({ cls: "kedge-actions" });
       const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
       const deleteBtn = actions.createEl("button", {
@@ -1013,8 +975,7 @@ var KedgeView = class extends import_obsidian.View {
   }
   // ---- note mutations --------------------------------------------------
   async deleteLesson(lesson) {
-    if (!window.confirm(`Delete lesson \u201C${lesson.claim}\u201D?`))
-      return;
+    if (!window.confirm(`Delete lesson \u201C${lesson.claim}\u201D?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(lesson.path);
     if (file instanceof import_obsidian.TFile) {
       await this.plugin.app.vault.delete(file);
@@ -1022,8 +983,7 @@ var KedgeView = class extends import_obsidian.View {
     }
   }
   async deleteLetter(letter) {
-    if (!window.confirm(`Delete the letter \u201C${letter.title}\u201D?`))
-      return;
+    if (!window.confirm(`Delete the letter \u201C${letter.title}\u201D?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(letter.path);
     if (file instanceof import_obsidian.TFile) {
       await this.plugin.app.vault.delete(file);
@@ -1034,8 +994,7 @@ var KedgeView = class extends import_obsidian.View {
     const { app, settings } = this.plugin;
     const files = await readAllMarkdown(app);
     for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder))
-        continue;
+      if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
       if ((fm.id ?? idFromTitle(f.basename)) === id) {
@@ -1049,8 +1008,7 @@ var KedgeView = class extends import_obsidian.View {
     const { app, settings } = this.plugin;
     const files = await readAllMarkdown(app);
     for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder))
-        continue;
+      if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
       if ((fm.id ?? idFromTitle(f.basename)) === id) {
@@ -1066,8 +1024,7 @@ var KedgeView = class extends import_obsidian.View {
     const { app, settings } = this.plugin;
     const files = await readAllMarkdown(app);
     for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder))
-        continue;
+      if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
       if ((fm.id ?? idFromTitle(f.basename)) === id) {
@@ -1168,8 +1125,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
   async refreshDashboards() {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE)) {
       const view = leaf.view;
-      if (view && typeof view.render === "function")
-        await view.render();
+      if (view && typeof view.render === "function") await view.render();
     }
   }
   async activateDashboard() {
@@ -1223,8 +1179,7 @@ ${err.stack}` : String(err);
    */
   getTargetLeaf() {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE);
-    if (existing.length)
-      return existing[0];
+    if (existing.length) return existing[0];
     return this.app.workspace.getLeaf();
   }
 };
