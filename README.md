@@ -1,51 +1,39 @@
-# Kedge
+# kedge
 
-An Obsidian plugin. Dashboard with one next step, lessons I've written down, letters to future me. Markdown in the vault.
+obsidian plugin i wrote for myself. one next step, lessons, letters to future me. all markdown in the vault.
 
-![Kedge](public/image.png)
+![kedge](public/image.png)
 
-(I have ADHD. A list of forty tasks is worse than no list.)
+## install
 
-## Install
-
-```bash
+```
 pnpm install && pnpm build
 ```
 
-Copy `main.js`, `manifest.json`, `styles.css` into `<vault>/.obsidian/plugins/kedge/`. Enable it. That's the whole install.
+copy `main.js`, `manifest.json`, `styles.css` to `<vault>/.obsidian/plugins/kedge/` and enable it in settings.
 
-## What's in it
+## keys
 
-Five commands: dashboard, dashboard in the sidebar, letter, next step, lesson. ⌘⇧D, ⌘⇧M, ⌘⇧N, ⌘⇧L for the four that have keys. The same things are buttons on the page.
+cmd+shift+d dashboard, cmd+shift+m letter, cmd+shift+n next step, cmd+shift+l lesson. the sidebar one has no key, it's in the palette.
 
-## Things that will annoy you
+## what happened when
 
-- Obsidian doesn't pin tabs. The sidebar command is the closest thing, and it survives a restart.
-- Do doesn't open the note, it marks the step as the one you're on (`status: working`) and clears any snooze. Open the note from the file explorer.
-- Snoozed steps drop to the bottom, grey, with Edit, Snooze and Done disabled. Only Do works.
-- A letter doesn't flip its own status when its date arrives. It just shows up. Some days you get one, some days nothing.
-- Drag handles are the ⠿ on the left of a card. Dragging writes an `order` field, which beats priority for sorting.
-- Lesson search is fuzzy whether you want it to be or not. `shbv` finds "Ship the boring version first".
+- 2026-11-03: sidebar command. obsidian won't pin a tab, so that's the closest thing to keeping it on screen.
+- 2026-11-02: snoozed steps moved into their own grey group at the bottom with the buttons dead except do. also took the date and the fake shortcuts out of the header. they were never bound to anything.
+- 2026-11-01: letters list collapsed to one line per letter. title only, edit and delete on the right.
+- 2026-10-31: letters arrive. before that a sealed letter just sat there, nothing ever flipped it to delivered.
+- 2026-10-30: drag to reorder. writes an `order` field on the note.
+- 2026-10-29: lesson search. fuzzy, `shbv` finds "Ship the boring version first".
+- 2026-10-28: first commit.
 
-![Next steps](public/steps.png)
+## tests
 
-![Lessons](public/lessons.png)
+pnpm test typechecks, then runs jest against a mock obsidian i wrote by hand. pnpm smoke boots a throwaway vault in real obsidian, runs the command, checks the view is actually there. five seconds.
 
-## Tests
+the mock has a `workspace.getLeaves` that the real api doesn't. the suite was green for a while while the plugin wouldn't open at all. that's why smoke exists.
 
-```bash
-pnpm test     # typecheck, then jest against a hand-written Obsidian mock
-pnpm smoke    # real Obsidian, throwaway vault, ~5s
-```
+drag and drop and anything visual: still untested.
 
-`pnpm test` was green for a while while the plugin couldn't open at all. The mock has a `workspace.getLeaves` that the real API doesn't. That's the reason `pnpm smoke` exists: it boots a temp vault, runs the actual command, and checks the workspace really has a Kedge view in it.
+## files
 
-Nobody checks drag and drop or how the thing looks. That's on me and on you.
-
-## Files
-
-- `Kedge/Letters/` keeps `id`, `title`, `status`, `seal_date`, `created_at`
-- `Kedge/Next-Steps/` keeps `id`, `title`, `status`, `priority`, `snooze_until`, `order`, `created_at`
-- `Kedge/Lessons/` keeps `id`, `claim`, `category`, `week`, `order`, `created_at`
-
-Last touched 2026-11-03. Obsidian 1.15.0.
+`Kedge/Letters/`, `Kedge/Next-Steps/`, `Kedge/Lessons/`. frontmatter fields are `id`, `title` or `claim`, `status`, `priority`, `snooze_until`, `seal_date`, `week`, `order`, `created_at`, whichever apply.
