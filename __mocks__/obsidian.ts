@@ -57,6 +57,17 @@ export class El {
     for (const cb of this.listeners[type] ?? []) cb(evt);
   }
 
+  /** Tag-only `closest`, enough for `evt.target.closest('button')`. */
+  closest(selector: string): El | null {
+    const tags = selector.split(',').map((s) => s.trim());
+    let cur: El | null = this;
+    while (cur) {
+      if (tags.includes(cur.tag)) return cur;
+      cur = cur.parent;
+    }
+    return null;
+  }
+
   all(pred: (e: El) => boolean, out: El[] = []): El[] {
     for (const c of this.children) {
       if (pred(c)) out.push(c);

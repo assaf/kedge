@@ -157,6 +157,21 @@ describe('KedgeView.render', () => {
     expect(leaked).toEqual([]);
   });
 
+  test('a note already marked working keeps its label and offers the same menu', async () => {
+    const { view, root } = makeView([
+      {
+        path: 'Kedge/Next-Steps/half-done.md',
+        basename: 'half-done',
+        content: '---\nid: half-done\ntitle: Half done\nstatus: working\npriority: 1\ncreated_at: 2026-11-01\n---\n',
+      },
+    ]);
+    await view.render();
+
+    // nothing sets `working` any more, but notes that carry it still read right
+    expect(root.all((e) => e.tag === 'span' && e.text === ' · working on it')).toHaveLength(1);
+    expect(root.buttons().map((b) => b.text)).not.toContain('Do');
+  });
+
   test('Done on the next best step marks the note done and re-renders', async () => {
     const { view, root, modified } = makeView();
     await view.render();

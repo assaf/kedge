@@ -464,8 +464,8 @@ describe('Editing and reordering next steps', () => {
     await view.render();
 
     const cards = cardsIn(section(root, 'Next steps'));
-    const actions = cards[1].all((e) => e.hasClass('kedge-actions'))[0];
-    pointer(cards[1], 'pointerdown', { target: actions });
+    const caret = cards[1].all((e) => e.hasClass('kedge-menu-button'))[0];
+    pointer(cards[1], 'pointerdown', { target: caret });
     pointer(cards[1], 'pointermove', { target: cards[0] });
     pointer(cards[1], 'pointerup');
     await flush();
@@ -521,10 +521,8 @@ describe('Snoozed next steps', () => {
     const snoozed = listEl.children.filter((c) => c.hasClass('kedge-snoozed'));
     expect(snoozed).toHaveLength(1);
     expect(cardTitle(snoozed[0])).toBe('File taxes');
-    // Do stays a button; everything else about the state is in the menu
-    expect(snoozed[0].buttonTexts()).toEqual(['⋯', 'Do']);
-    expect(snoozed[0].buttons().find((b) => b.text === 'Do')!.disabled).toBe(false);
-    // a snoozed step offers the way back out, and nothing it cannot do yet
+    // one control: the menu, offering the way back out
+    expect(snoozed[0].buttonTexts()).toEqual(['⋯']);
     expect(menuIn(snoozed[0]).items.map((i) => i.title)).toEqual(['Unsnooze']);
     expect(snoozed[0].hasClass('kedge-draggable')).toBe(false); // not reorderable
 
@@ -534,7 +532,7 @@ describe('Snoozed next steps', () => {
     expect(snoozedIndex).toBeGreaterThan(activeIndex);
 
     // active cards keep the full action set, one level down
-    expect(cardsIn(listEl)[0].buttonTexts()).toEqual(['⋯', 'Do']);
+    expect(cardsIn(listEl)[0].buttonTexts()).toEqual(['⋯']);
     expect(menuIn(cardsIn(listEl)[0]).items.map((i) => i.title)).toEqual([
       'Edit',
       'Snooze',
@@ -564,47 +562,9 @@ describe('Snoozed next steps', () => {
     expect(back).toBeTruthy();
     expect(menuIn(back).items.map((i) => i.title)).toEqual(['Edit', 'Snooze', 'Done']);
   });
-
-  test('Do marks it as being worked on, without opening a tab', async () => {
-    const { view, root, modified, opened } = makeCtx();
-    await view.render();
-
-    const snoozed = section(root, 'Next steps').children.find((c) => c.hasClass('kedge-snoozed'))!;
-    await snoozed.buttons().find((b) => b.text === 'Do')!.onclick();
-    await flush();
-
-    expect(modified[0].path).toBe('Kedge/Next-Steps/file-taxes.md');
-    expect(modified[0].content).toContain('status: working');
-    expect(modified[0].content).not.toContain('snooze_until');
-    expect(modified[0].content).toContain('id: file-taxes');
-    expect(opened).toEqual([]); // no new tab
-
-    const after = section(root, 'Next steps');
-    expect(after.children.filter((c) => c.hasClass('kedge-snoozed'))).toHaveLength(0);
-    expect(cardsIn(after).map(cardTitle)).toContain('File taxes');
-  });
-
-  test('Do on an active step marks it as being worked on', async () => {
-    const { view, root, modified, opened } = makeCtx();
-    await view.render();
-
-    const first = cardsIn(section(root, 'Next steps'))[0];
-    await first.buttons().find((b) => b.text === 'Do')!.onclick();
-    await flush();
-
-    expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
-    expect(modified[0].content).toContain('status: working');
-    expect(opened).toEqual([]);
-    expect(root.all((e) => e.tag === 'span' && e.text === ' · working on it')).toHaveLength(1);
-
-    // Do now does nothing for this step, so it is disabled; siblings keep it
-    const afterCards = cardsIn(section(root, 'Next steps'));
-    const working = afterCards.find((c) => cardTitle(c) === 'Call the dentist')!;
-    const other = afterCards.find((c) => cardTitle(c) === 'Renew passport')!;
-    expect(working.buttons().find((x) => x.text === 'Do')!.disabled).toBe(true);
-    expect(other.buttons().find((x) => x.text === 'Do')!.disabled).toBe(false);
-  });
 });
+
+
 
 describe('Future letters', () => {
   test('scheduled letters are one-line rows, separate from arrived ones', async () => {

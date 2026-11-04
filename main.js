@@ -831,13 +831,12 @@ var KedgeView = class extends import_obsidian.View {
     return button;
   }
   /**
-   * The housekeeping on a step. What is on the menu is a function of state, so
-   * the two can never disagree: snoozed offers the way back, everything else
-   * offers the way forward. `Do` is not here — it is the work, and stays a
-   * button on the card.
+   * Everything a step can do. What is on the menu is a function of state, so
+   * the two can never disagree: a snoozed step offers the way back, everything
+   * else offers the way forward.
    *
-   * A snoozed step still cannot be edited or finished until it has been picked
-   * up, which is why "Unsnooze" stands alone rather than joining Edit and Done.
+   * A snoozed step still cannot be edited or finished until it has been brought
+   * back, which is why "Unsnooze" stands alone rather than joining Edit and Done.
    */
   stepMenu(parent, step) {
     const after = (fn) => async () => {
@@ -994,16 +993,6 @@ var KedgeView = class extends import_obsidian.View {
         if (step.status === "working") {
           meta.createEl("span", { text: " \xB7 working on it" });
         }
-        const actions = card.createDiv({ cls: "kedge-actions" });
-        const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
-        if (step.status === "working") {
-          doBtn.disabled = true;
-        } else {
-          doBtn.onclick = async () => {
-            await this.startStep(step.id);
-            await this.plugin.refreshDashboards();
-          };
-        }
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
     } else if (snoozedSteps.length === 0) {
@@ -1020,12 +1009,6 @@ var KedgeView = class extends import_obsidian.View {
         meta.createEl("span", {
           text: step.snoozeUntil ? `snoozed until ${step.snoozeUntil}` : "snoozed"
         });
-        const actions = card.createDiv({ cls: "kedge-actions" });
-        const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
-        doBtn.onclick = async () => {
-          await this.startStep(step.id);
-          await this.plugin.refreshDashboards();
-        };
       }
     }
     const lessons = await loadLessons(app, settings.lessonFolder);
@@ -1164,15 +1147,11 @@ var KedgeView = class extends import_obsidian.View {
   }
   /**
    * The way back out of a snooze: back to pending and back into the list, with
-   * no snooze date left behind. State only — it does not make the step the one
-   * being worked on, which is what `Do` is for.
+   * no snooze date left behind. Unsnooze is the only way back now that `Do` is
+   * gone, so this is a state change and nothing more.
    */
   async unsnoozeStep(id) {
     await this.patchStep(id, { status: "pending", snooze_until: null });
-  }
-  /** Marks a step as the one being worked on, clearing any snooze. */
-  async startStep(id) {
-    await this.patchStep(id, { status: "working", snooze_until: null });
   }
   async onClose() {
   }
