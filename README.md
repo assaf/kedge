@@ -36,12 +36,12 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 `cmd+shift+n` Add next step
 
-`cmd+shift+l` Save alesson
+`cmd+shift+l` Save a lesson
 
 ## Changelog
 
 - 2026-11-03: next steps lose their button row, and the do button with it. edit, snooze and done sit under the ⋯ now; a snoozed step's ⋯ offers unsnooze instead, because state decides and the menu cannot then disagree with the step. unsnooze does the job do had, so nothing has to claim a step any more.
-- 2026-11-03: a lesson keeps one ⋯ on the right of its title instead of an edit and a delete button under every claim, and a scheduled letter does the same. the menu is obsidian's own, so it opens as a sheet on the phone and needs no positioning code. next steps keep their buttons for now.
+- 2026-11-03: a lesson keeps one ⋯ on the right of its title instead of an edit and a delete button under every claim, and a scheduled letter does the same. the menu is obsidian's own, so it opens as a sheet on the phone and needs no positioning code. next steps got the same menu — edit, snooze, done, or unsnooze depending on the step's state.
 - 2026-11-03: notes stop getting damaged. changing one property (done, snoozed, order, an edit) now rewrites that line only, so tags lists, quoted titles and anything obsidian added survive. titles are quoted when they have to be, so a step called "email sam: invoice" no longer writes broken yaml. a repeated title gets its own id, so done reaches the note you clicked. dates are the local date, not utc, so an evening no longer stamps tomorrow.
 - 2026-11-03: works on the phone. reorder is pointer-driven and a touch drag starts at ⠿, because ios never fires html5 drag events on a div. the sidebar command opens a tab where there is no right split. colours come from the theme now, so it stops looking like a light app inside a dark one.
 - 2026-11-03: sidebar command. obsidian won't pin a tab, so that's the closest thing to keeping it on screen.
