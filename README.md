@@ -58,6 +58,8 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 `pnpm smoke` boots a throwaway vault in real Obsidian, runs the command, checks the view is actually there. Should complete in just five seconds.
 
+`pnpm screenshot` re-shoots `public/image.png`: it seeds a throwaway vault with the sample notes, switches to light mode, captures the dashboard one viewport at a time, stitches the strips and pads 100px each side. Needs Obsidian running and ImageMagick. Nothing in the shot is hand-placed, so a UI change only needs this one command.
+
 ## Obsidian files
 
 `Kedge/Letters/`, `Kedge/Next-Steps/`, `Kedge/Lessons/`. 

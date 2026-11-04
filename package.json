@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "pnpm typecheck && jest",
     "smoke": "pnpm build && node scripts/smoke.mjs",
-    "dev": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs --watch"
+    "dev": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs --watch",
+    "screenshot": "pnpm build && node scripts/screenshot.mjs"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
