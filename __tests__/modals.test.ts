@@ -117,7 +117,7 @@ function grip(card: El): El {
   return handle;
 }
 
-/** The ▾ on a lesson card, and the menu it opens. */
+/** The ⋯ on a lesson card, and the menu it opens. */
 function lessonMenu(root: El): Menu {
   const caret = section(root, 'Lessons').buttons().find((b) => b.hasClass('kedge-menu-button'));
   if (!caret) throw new Error(`no lesson caret in ${JSON.stringify(section(root, 'Lessons').buttonTexts())}`);
@@ -290,7 +290,7 @@ describe('Lessons', () => {
     await view.render();
 
     const card = cardsIn(section(root, 'Lessons'))[0];
-    expect(card.buttonTexts()).toEqual(['▾']);
+    expect(card.buttonTexts()).toEqual(['⋯']);
   });
 
   test('the caret opens Edit and Delete, in that order', async () => {

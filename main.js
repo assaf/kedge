@@ -1038,7 +1038,7 @@ var KedgeView = class extends import_obsidian.View {
       head.createSpan({ cls: "kedge-claim", text: lesson.claim });
       const menuBtn = head.createEl("button", {
         cls: "kedge-menu-button",
-        text: "\u25BE"
+        text: "\u22EF"
       });
       menuBtn.setAttribute("aria-label", "Lesson actions");
       menuBtn.onclick = (evt) => {

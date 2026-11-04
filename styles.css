@@ -223,10 +223,13 @@
 }
 
 /*
- * The lesson caret. It sits on the title row with `margin-left: auto`, so it
- * holds the right edge whether the claim is three words or a sentence, and
- * `flex: 0 0 auto` keeps a long claim from squeezing it off. Transparent by
- * default: the row should read as one line of text, not as a button bar.
+ * The lesson menu button. It sits on the title row with `margin-left: auto`,
+ * so it holds the right edge whether the claim is three words or a sentence,
+ * and `flex: 0 0 auto` keeps a long claim from squeezing it off.
+ *
+ * `⋯` at 1.3rem in body colour, not a faint 0.95rem `▾`: a caret that quiet
+ * read as decoration and nobody found it. Transparent background because the
+ * row should still read as one line of text, not as a button bar.
  */
 .kedge-claim {
   flex: 1;
@@ -238,14 +241,15 @@
   align-self: center;
   margin-left: auto;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   border: none;
   box-shadow: none;
   padding: 2px 8px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1.2;
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 @media (hover: hover) {
@@ -259,12 +263,13 @@
   background: var(--background-modifier-hover);
 }
 
-/* Touch needs a target, not a glyph: 12px of padding is a thumb-sized hit
-   that costs nothing visually. */
+/* Touch needs a target, not a glyph: 10px of padding is a thumb-sized hit
+   that costs nothing visually. The negative margins keep the row the same
+   height it was before the padding. */
 .is-mobile .kedge-menu-button {
-  padding: 8px 12px;
-  margin-top: -8px;
-  margin-bottom: -8px;
+  padding: 10px 14px;
+  margin-top: -10px;
+  margin-bottom: -10px;
 }
 
 .kedge-meta {

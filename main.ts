@@ -1373,7 +1373,7 @@ export class KedgeView extends View {
       // on the phone without a line of positioning code here.
       const menuBtn = head.createEl("button", {
         cls: "kedge-menu-button",
-        text: "▾",
+        text: "⋯",
       });
       menuBtn.setAttribute("aria-label", "Lesson actions");
       menuBtn.onclick = (evt: MouseEvent) => {
