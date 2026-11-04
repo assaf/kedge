@@ -18,11 +18,15 @@ By organizing into next steps, future letters, and lessons, I think I captured h
 
 ## Install Kedge
 
-```
-pnpm install && pnpm build
-```
+Not in the community store, so there are three ways in.
 
-copy `main.js`, `manifest.json`, `styles.css` to `<vault>/.obsidian/plugins/kedge/` and enable it in settings.
+**BRAT, which updates itself.** Install [BRAT](https://github.com/TfTHacker/obsidian42-brat), then *Add beta plugin* → `assaf/kedge`. Works on desktop and phone; each release shows up as an update.
+
+**Copy a release.** Grab `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/assaf/kedge/releases/latest) and put them in `<vault>/.obsidian/plugins/kedge/`.
+
+**Build it.** `pnpm install && pnpm build`, then copy the same three files.
+
+Either way, enable it in Settings → Community plugins → Kedge.
 
 ## Keyboard shortcuts
 
