@@ -799,7 +799,6 @@ var KedgeView = class extends import_obsidian.View {
       await this.renderBody();
     } catch (err) {
       new import_obsidian.Notice("Kedge render failed: " + err.message);
-      console.error("Kedge render failed:", err);
     }
   }
   /** Title row that leaves space for section-level actions. */
@@ -1259,7 +1258,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
       const msg = err instanceof Error ? `${err.message}
 ${err.stack}` : String(err);
       new import_obsidian.Notice("Kedge failed to open: " + msg);
-      console.error("Kedge activate failed:", err);
     }
   }
   /**
@@ -1282,7 +1280,6 @@ ${err.stack}` : String(err);
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       new import_obsidian.Notice("Kedge failed to open: " + err.message);
-      console.error("Kedge sidebar failed:", err);
     }
   }
   async loadSettings() {

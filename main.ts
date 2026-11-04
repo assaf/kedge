@@ -1097,7 +1097,6 @@ export class KedgeView extends View {
       await this.renderBody();
     } catch (err) {
       new Notice("Kedge render failed: " + (err as Error).message);
-      console.error("Kedge render failed:", err);
     }
   }
 
@@ -1666,7 +1665,6 @@ export default class KedgePlugin extends Plugin {
     } catch (err) {
       const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
       new Notice("Kedge failed to open: " + msg);
-      console.error("Kedge activate failed:", err);
     }
   }
 
@@ -1689,7 +1687,6 @@ export default class KedgePlugin extends Plugin {
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       new Notice("Kedge failed to open: " + (err as Error).message);
-      console.error("Kedge sidebar failed:", err);
     }
   }
 
