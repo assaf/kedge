@@ -179,7 +179,10 @@ export class View {
 export class WorkspaceLeaf {
   public viewType: string | undefined;
   public view: any = null;
-  public setViewState = jest.fn(async (_state: any) => {});
+  /** Records the type, so `getLeavesOfType` sees a leaf that has actually opened a view. */
+  public setViewState = jest.fn(async (state: any) => {
+    this.viewType = state?.type;
+  });
   public openFile = jest.fn(async (_file: any) => {});
 }
 
@@ -188,7 +191,15 @@ export class Workspace {
   constructor(public leaves: WorkspaceLeaf[] = []) {}
   getLeaves() { return this.leaves; }
   getLeavesOfType(viewType: string) { return this.leaves.filter(l => l.viewType === viewType); }
-  getLeaf() { return this.leaves[0] ?? null; }
+  /** `getLeaf('tab')` really does make a new leaf in Obsidian; tests need to see it. */
+  getLeaf(newLeaf?: any) {
+    if (newLeaf) {
+      const leaf = new WorkspaceLeaf();
+      this.leaves.push(leaf);
+      return leaf;
+    }
+    return this.leaves[0] ?? null;
+  }
   getRightLeaf(_split: boolean) { return this.rightLeaf ?? this.leaves[0] ?? null; }
   revealLeaf = jest.fn();
 }

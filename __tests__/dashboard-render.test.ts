@@ -50,6 +50,8 @@ function makeView(seed?: any[]) {
   const view: any = new KedgeView({} as any, plugin);
   const root = new El('div');
   view.container = root;
+  // The real plugin re-renders every open dashboard; here there is one.
+  plugin.refreshDashboards = () => view.render();
   return { view, root, modified, deleted };
 }
 
@@ -150,4 +152,35 @@ describe('KedgeView.render', () => {
     // after re-render the step is no longer pending, so the empty state shows
     expect(root.buttonTexts()).toContain('New next step');
   });
+
+  test('Done leaves every property it did not set alone', async () => {
+    const note = [
+      '---',
+      'id: renew-passport',
+      'title: "Renew passport: urgent"',
+      'status: pending',
+      'priority: 2',
+      'tags:',
+      '  - admin',
+      '  - errand',
+      'created_at: 2026-11-01',
+      '---',
+      'Boring body.',
+    ].join('\n');
+    const { view, root, modified } = makeView([
+      { path: 'Kedge/Next-Steps/renew-passport.md', basename: 'renew-passport', content: note },
+    ]);
+    await view.render();
+
+    const done = root.buttons().find((b) => b.text === 'Done')!;
+    await done.onclick();
+
+    const written = modified[0].content;
+    expect(written).toContain('status: done');
+    // the quoted title, the tag list and the body are untouched
+    expect(written).toContain('title: "Renew passport: urgent"');
+    expect(written).toContain('tags:\n  - admin\n  - errand');
+    expect(written.endsWith('Boring body.')).toBe(true);
+  });
+
 });

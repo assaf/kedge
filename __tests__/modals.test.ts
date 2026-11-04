@@ -16,7 +16,7 @@ function noteFile(path: string, content: string): TFile {
   return file;
 }
 
-const STEP = '---\nid: call-the-dentist\ntitle: Call the dentist\nstatus: pending\npriority: 1\ncreated_at: 2026-11-01\n---\n';
+const STEP = '---\nid: call-the-dentist\ntitle: Call the dentist\nstatus: pending\npriority: 1\ntags:\n  - admin\ncreated_at: 2026-11-01\n---\n';
 const STEP2 = '---\nid: renew-passport\ntitle: Renew passport\nstatus: pending\npriority: 2\ncreated_at: 2026-11-02\n---\n';
 const STEP_SNOOZED = '---\nid: file-taxes\ntitle: File taxes\nstatus: snoozed\npriority: 2\nsnooze_until: 2099-01-01\ncreated_at: 2026-11-01\n---\n';
 const LETTER = '---\nid: dear-future-me\ntitle: Dear future me\nstatus: delivered\nseal_date: 2026-10-01\ncreated_at: 2026-04-01\n---\nSleep more.';
@@ -73,6 +73,8 @@ function makeCtx() {
   const view: any = new KedgeView({} as any, plugin);
   const root = new El('div');
   view.container = root;
+  // The real plugin re-renders every open dashboard; here there is one.
+  plugin.refreshDashboards = () => view.render();
   return { view, root, created, modified, deleted, opened };
 }
 
@@ -106,6 +108,30 @@ function cardTitle(card: El): string {
   if (!title) return '';
   const span = title.all((e) => e.tag === 'span' && e.text !== '' && e.text !== '⠿')[0];
   return span ? span.text : title.text;
+}
+
+/** The ⠿ handle that starts a reorder on touch. */
+function grip(card: El): El {
+  const handle = card.all((e) => e.hasClass('kedge-grip'))[0];
+  if (!handle) throw new Error('card has no grip');
+  return handle;
+}
+
+/**
+ * One pointer event, shaped the way the DOM sends it. The plugin resolves the
+ * card under the pointer from `elementFromPoint` and falls back to `evt.target`,
+ * which is the only hit testing available under jest.
+ */
+function pointer(el: El, type: string, props: Record<string, any> = {}): void {
+  el.dispatch(type, {
+    button: 0,
+    pointerType: 'mouse',
+    clientX: 0,
+    clientY: 0,
+    target: el,
+    preventDefault() {},
+    ...props,
+  });
 }
 
 beforeEach(() => {
@@ -152,6 +178,32 @@ describe('New next step', () => {
 
     expect(modified).toHaveLength(0);
     expect(created[0].path).toBe('Kedge/Next-Steps/call-the-dentist-2.md');
+  });
+
+  test('a repeated title also gets its own id, so Done reaches the right note', async () => {
+    const { view, root, created, modified } = makeCtx();
+    await view.render();
+
+    click(root, '+ New step');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Call the dentist';
+    click(modal.contentEl, 'Create');
+    await flush();
+    // the file name was already made unique; the id inside was not
+    expect(created[0].content).toContain('id: call-the-dentist-2');
+
+    // the two seeded steps are priority 1 and 2, so the new priority-3 step
+    // sits third; it carries the same title as the first one
+    const cards = cardsIn(section(root, 'Next steps'));
+    expect(cards.map(cardTitle)).toEqual(['Call the dentist', 'Renew passport', 'Call the dentist']);
+    const done = cards[2].buttons().find((b) => b.text === 'Done')!;
+    await done.onclick();
+    await flush();
+
+    expect(modified).toHaveLength(1);
+    expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist-2.md');
+    expect(modified[0].content).toContain('status: done');
+    expect(modified[0].content).toContain('id: call-the-dentist-2');
   });
 
   test('refuses to create a step without a title', async () => {
@@ -280,6 +332,8 @@ describe('Editing and reordering next steps', () => {
     expect(modified[0].content).toContain('priority: 4'); // "low"
     expect(modified[0].content).toContain('status: pending');
     expect(modified[0].content).toContain('created_at: 2026-11-01');
+    // a property the modal never showed is still there afterwards
+    expect(modified[0].content).toContain('tags:\n  - admin');
   });
 
   test('a new step can be created with a word priority', async () => {
@@ -309,9 +363,9 @@ describe('Editing and reordering next steps', () => {
     expect(cards.map(cardTitle)).toEqual(['Call the dentist', 'Renew passport']);
 
     // drag "Renew passport" above "Call the dentist"
-    cards[1].dispatch('dragstart', { dataTransfer: { setData() {} } });
-    cards[0].dispatch('dragover', { preventDefault() {} });
-    cards[0].dispatch('drop', { preventDefault() {}, dataTransfer: { getData: () => '' } });
+    pointer(cards[1], 'pointerdown');
+    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointerup');
     await flush();
 
     const orderWrites = modified.map((m) => `${m.path} -> ${/order: (\d+)/.exec(m.content)?.[1]}`);
@@ -329,8 +383,59 @@ describe('Editing and reordering next steps', () => {
     await view.render();
 
     const cards = cardsIn(section(root, 'Next steps'));
-    cards[0].dispatch('dragstart', { dataTransfer: { setData() {} } });
-    cards[0].dispatch('drop', { preventDefault() {}, dataTransfer: { getData: () => '' } });
+    pointer(cards[0], 'pointerdown');
+    pointer(cards[0], 'pointermove', { target: cards[0] });
+    pointer(cards[0], 'pointerup');
+    await flush();
+
+    expect(modified).toEqual([]);
+  });
+
+  test('touch reorders only from the grip, so a scrolling finger does not move cards', async () => {
+    const { view, root, modified } = makeCtx();
+    await view.render();
+
+    const cards = cardsIn(section(root, 'Next steps'));
+    // a finger dragging the card body is a scroll, not a reorder
+    pointer(cards[1], 'pointerdown', { pointerType: 'touch' });
+    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointerup');
+    await flush();
+    expect(modified).toEqual([]);
+
+    // the grip is the handle: same gesture, from ⠿
+    pointer(cards[1], 'pointerdown', { pointerType: 'touch', target: grip(cards[1]) });
+    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointerup');
+    await flush();
+
+    const after = cardsIn(section(root, 'Next steps'));
+    expect(after.map(cardTitle)).toEqual(['Renew passport', 'Call the dentist']);
+  });
+
+  test('a cancelled drag writes nothing', async () => {
+    const { view, root, modified } = makeCtx();
+    await view.render();
+
+    const cards = cardsIn(section(root, 'Next steps'));
+    // the browser can reclaim a touch gesture mid-drag; that is not a drop
+    pointer(cards[1], 'pointerdown', { pointerType: 'touch', target: grip(cards[1]) });
+    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointercancel');
+    await flush();
+
+    expect(modified).toEqual([]);
+  });
+
+  test('a pointer press on a card action does not start a drag', async () => {
+    const { view, root, modified } = makeCtx();
+    await view.render();
+
+    const cards = cardsIn(section(root, 'Next steps'));
+    const actions = cards[1].all((e) => e.hasClass('kedge-actions'))[0];
+    pointer(cards[1], 'pointerdown', { target: actions });
+    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointerup');
     await flush();
 
     expect(modified).toEqual([]);
@@ -355,8 +460,9 @@ describe('Reordering lessons', () => {
     // newest lesson sorts first until something is dragged
     expect(two.map(cardTitle)).toEqual(['Ask for the sale', 'Ship the boring version first']);
 
-    two[1].dispatch('dragstart', { dataTransfer: { setData() {} } });
-    two[0].dispatch('drop', { preventDefault() {}, dataTransfer: { getData: () => '' } });
+    pointer(two[1], 'pointerdown');
+    pointer(two[1], 'pointermove', { target: two[0] });
+    pointer(two[1], 'pointerup');
     await flush();
 
     const lessonWrites = modified.filter((m) => m.path.startsWith('Kedge/Lessons/'));

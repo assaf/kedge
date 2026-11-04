@@ -1,11 +1,12 @@
 jest.spyOn(console, 'error').mockImplementation(() => {});
 
 import KedgePlugin from '../main';
-import { WorkspaceLeaf, Workspace, VIEW_TYPE_KEDGE, Notice, registeredCommands, notices, DEFAULT_SETTINGS } from 'obsidian';
+import { WorkspaceLeaf, Workspace, VIEW_TYPE_KEDGE, Platform, registeredCommands, notices, DEFAULT_SETTINGS } from 'obsidian';
 
 beforeEach(() => {
   registeredCommands.length = 0;
   notices.length = 0;
+  Platform.isMobile = false;
 });
 
 describe('Plugin registration and command registration', () => {
@@ -81,7 +82,39 @@ describe('activateDashboardInSidebar', () => {
     plugin.settings = { ...DEFAULT_SETTINGS };
 
     await (plugin as any).activateDashboardInSidebar();
-    expect(notices.some((n) => n.includes('no right sidebar'))).toBe(true);
+    expect(notices.some((n) => n.includes('no leaf to attach to'))).toBe(true);
+  });
+
+  test('opens a tab on mobile, where there is no right split', async () => {
+    Platform.isMobile = true;
+    const workspace: any = new Workspace([]);
+    workspace.getRightLeaf = () => null; // exactly what mobile does
+
+    const plugin = new KedgePlugin() as any;
+    plugin.app = { workspace };
+    plugin.settings = { ...DEFAULT_SETTINGS };
+
+    await (plugin as any).activateDashboardInSidebar();
+    expect(notices).toEqual([]);
+    expect(workspace.getLeavesOfType(VIEW_TYPE_KEDGE)).toEqual([
+      expect.objectContaining({ viewType: VIEW_TYPE_KEDGE }),
+    ]);
+    expect(workspace.revealLeaf).toHaveBeenCalled();
+  });
+
+  test('mobile reuses an open dashboard instead of stacking tabs', async () => {
+    Platform.isMobile = true;
+    const open = new WorkspaceLeaf();
+    open.viewType = VIEW_TYPE_KEDGE;
+    const workspace: any = new Workspace([open]);
+
+    const plugin = new KedgePlugin() as any;
+    plugin.app = { workspace };
+    plugin.settings = { ...DEFAULT_SETTINGS };
+
+    await (plugin as any).activateDashboardInSidebar();
+    expect(workspace.getLeaves()).toHaveLength(1);
+    expect(open.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_KEDGE, state: {} });
   });
 });
 
@@ -121,9 +154,15 @@ describe('activateDashboard', () => {
 });
 
 
-import { idFromTitle, parseFrontmatter, serializeFrontmatter } from '../main';
+import {
+  idFromTitle,
+  localDate,
+  parseFrontmatter,
+  serializeFrontmatter,
+  setFrontmatterKeys,
+} from '../main';
 
-describe('Pure helpers', () => {
+describe('Frontmatter', () => {
   test('idFromTitle creates lowercase slug', () => {
     expect(idFromTitle('Hello World!')).toBe('hello-world');
   });
@@ -132,16 +171,80 @@ describe('Pure helpers', () => {
     expect(parseFrontmatter('no frontmatter')).toEqual({});
   });
 
-  test('serializeFrontmatter formats correctly', () => {
-    const obj = { id: '123', title: 'test', status: 'sealed' };
-    const result = serializeFrontmatter(obj);
-    expect(result).toContain('id: 123');
-    expect(result).toContain('status: sealed');
+  test('parseFrontmatter reads a CRLF note', () => {
+    // A note written with Windows line endings used to parse as having no
+    // frontmatter, so the card disappeared from the dashboard.
+    const crlf = '---\r\nid: call-the-dentist\r\nstatus: pending\r\n---\r\nbody';
+    expect(parseFrontmatter(crlf)).toEqual({ id: 'call-the-dentist', status: 'pending' });
   });
 
-  test('nowStr returns ISO date format matching YYYY-MM-DD', () => {
-    const result = require('../main').nowStr();
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  test('serializeFrontmatter quotes values that would not read back', () => {
+    const out = serializeFrontmatter({
+      id: 'x',
+      title: 'Call the dentist: Monday',
+      status: 'sealed',
+      priority: 3,
+    });
+    expect(out).toContain('id: x');
+    expect(out).toContain('status: sealed');
+    expect(out).toContain('priority: 3');
+    // a colon before a space opens a mapping, so the title must be quoted
+    expect(out).toContain('title: "Call the dentist: Monday"');
+    expect(parseFrontmatter(out).title).toBe('Call the dentist: Monday');
+  });
+
+  test('a title that ends in a quote survives the round trip', () => {
+    const out = serializeFrontmatter({ title: 'Say "hi"' });
+    expect(parseFrontmatter(out).title).toBe('Say "hi"');
+  });
+
+  test('setFrontmatterKeys touches only the keys it is given', () => {
+    const note = [
+      '---',
+      'id: renew-passport',
+      'title: "Renew passport"',
+      'status: pending',
+      'tags:',
+      '  - admin',
+      '  - errand',
+      '---',
+      'Boring body.',
+    ].join('\n');
+
+    const out = setFrontmatterKeys(note, { status: 'done', order: 2 });
+    expect(out).toContain('status: done');
+    expect(out).toContain('order: 2');
+    // everything else is byte for byte what it was
+    expect(out).toContain('title: "Renew passport"');
+    expect(out).toContain('tags:\n  - admin\n  - errand');
+    expect(out.endsWith('Boring body.')).toBe(true);
+  });
+
+  test('setFrontmatterKeys with null removes the key and its line only', () => {
+    const note = '---\nid: x\nstatus: snoozed\nsnooze_until: 2026-11-09\n---\n';
+    const out = setFrontmatterKeys(note, { status: 'working', snooze_until: null });
+    expect(out).not.toContain('snooze_until');
+    expect(out).toContain('status: working');
+    expect(out).toContain('id: x');
+  });
+
+  test('setFrontmatterKeys adds a block to a note that has none', () => {
+    const out = setFrontmatterKeys('just a body', { id: 'x' });
+    expect(out).toBe('---\nid: x\n---\njust a body');
+  });
+
+  test('setFrontmatterKeys keeps the line endings of the note', () => {
+    const crlf = '---\r\nid: x\r\nstatus: pending\r\n---\r\nbody';
+    const out = setFrontmatterKeys(crlf, { status: 'done' });
+    expect(out).toContain('status: done\r\n');
+    expect(out).not.toMatch(/[^\r]\n(?!$)/); // every newline is part of a CRLF
+  });
+
+  test('localDate is the calendar date, not the UTC one', () => {
+    // 6:30pm in California is already the next day in UTC
+    const evening = new Date(2026, 10, 3, 18, 30);
+    expect(localDate(evening)).toBe('2026-11-03');
+    expect(localDate(new Date(2026, 0, 9, 0, 5))).toBe('2026-01-09');
   });
 });
 
@@ -163,39 +266,13 @@ import {
 
 describe('Note builders', () => {
   test('nextStepNote produces a note loadNextSteps can read back', () => {
-    const { id, content } = nextStepNote('Call the dentist', 1, undefined, '2026-11-02');
-    expect(id).toBe('call-the-dentist');
+    const content = nextStepNote('Call the dentist', 1, 'call-the-dentist', '2026-11-02');
     const fm = parseFrontmatter(content);
     expect(fm.id).toBe('call-the-dentist');
     expect(fm.title).toBe('Call the dentist');
     expect(fm.status).toBe('pending');
     expect(fm.priority).toBe('1');
     expect(fm.created_at).toBe('2026-11-02');
-  });
-
-  test('nextStepNote falls back to a stable id when the title has no slug', () => {
-    const { id } = nextStepNote('!!!', 3, undefined, '2026-11-02');
-    expect(id).toBe('step-2026-11-02');
-  });
-
-  test('editing a step keeps its id, status, order and created date', () => {
-    const existing = {
-      id: 'call-the-dentist',
-      status: 'snoozed',
-      snoozeUntil: '2026-11-09',
-      createdAt: '2026-10-01',
-      order: 4,
-    };
-    const { id, content } = nextStepNote('Call the dentist back', 2, existing, '2026-11-02');
-    expect(id).toBe('call-the-dentist');
-    const fm = parseFrontmatter(content);
-    expect(fm.id).toBe('call-the-dentist');
-    expect(fm.title).toBe('Call the dentist back');
-    expect(fm.status).toBe('snoozed');
-    expect(fm.priority).toBe('2');
-    expect(fm.snooze_until).toBe('2026-11-09');
-    expect(fm.created_at).toBe('2026-10-01');
-    expect(fm.order).toBe('4');
   });
 
   test('priority words and numbers map both ways', () => {
@@ -226,24 +303,18 @@ describe('Note builders', () => {
     expect(isSnoozed({ status: 'pending', snoozeUntil: null }, '2026-11-02')).toBe(false);
   });
   test('lessonNote creates a lesson keyed by its claim', () => {
-    const { id, content } = lessonNote('Ship the boring version first', 'product', undefined, '2026-11-02');
-    expect(id).toBe('ship-the-boring-version-first');
+    const content = lessonNote(
+      'Ship the boring version first',
+      'product',
+      'ship-the-boring-version-first',
+      '2026-11-02'
+    );
     const fm = parseFrontmatter(content);
+    expect(fm.id).toBe('ship-the-boring-version-first');
     expect(fm.claim).toBe('Ship the boring version first');
     expect(fm.category).toBe('product');
     expect(fm.week).toBe('2026-11-02');
     expect(fm.created_at).toBe('2026-11-02');
-  });
-
-  test('editing a lesson keeps its id, week and created date when the claim changes', () => {
-    const existing = { id: 'old-claim', week: '2026-01-05', createdAt: '2026-01-05' };
-    const { id, content } = lessonNote('New claim', 'health', existing, '2026-11-02');
-    expect(id).toBe('old-claim');
-    const fm = parseFrontmatter(content);
-    expect(fm.id).toBe('old-claim');
-    expect(fm.claim).toBe('New claim');
-    expect(fm.week).toBe('2026-01-05');
-    expect(fm.created_at).toBe('2026-01-05');
   });
 
   test('appendReply keeps the letter body and adds a dated reply section', () => {

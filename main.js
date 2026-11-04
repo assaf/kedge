@@ -36,13 +36,16 @@ __export(main_exports, {
   idFromTitle: () => idFromTitle,
   isSnoozed: () => isSnoozed,
   lessonNote: () => lessonNote,
+  localDate: () => localDate,
   nextStepNote: () => nextStepNote,
   nowStr: () => nowStr,
   parseFrontmatter: () => parseFrontmatter,
   priorityFromLabel: () => priorityFromLabel,
   priorityLabel: () => priorityLabel,
   serializeFrontmatter: () => serializeFrontmatter,
-  wireReorder: () => wireReorder
+  setFrontmatterKeys: () => setFrontmatterKeys,
+  wireReorder: () => wireReorder,
+  yamlScalar: () => yamlScalar
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
@@ -51,8 +54,12 @@ var DEFAULT_SETTINGS = {
   nextStepFolder: "Kedge/Next-Steps",
   lessonFolder: "Kedge/Lessons"
 };
+function localDate(date = /* @__PURE__ */ new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
 function nowStr() {
-  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  return localDate();
 }
 function idFromTitle(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -66,50 +73,81 @@ function priorityFromLabel(label) {
   const index = PRIORITY_LABELS.indexOf(label);
   return index === -1 ? 3 : index + 1;
 }
+var FRONTMATTER = /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*)(\r?\n|$)/;
 function parseFrontmatter(text) {
-  const match = text.match(/^---\n([\s\S]*?)\n---/);
+  const match = FRONTMATTER.exec(text);
   if (!match) return {};
-  const block = match[1];
   const obj = {};
-  for (const line of block.split("\n")) {
+  for (const line of match[2].split(/\r?\n/)) {
     const idx = line.indexOf(":");
-    if (idx === -1) continue;
+    if (idx <= 0) continue;
     const key = line.slice(0, idx).trim();
-    const val = line.slice(idx + 1).trim().replace(/^"|"$/g, "");
-    obj[key] = val;
+    if (!key) continue;
+    obj[key] = unquote(line.slice(idx + 1).trim());
   }
   return obj;
 }
+function yamlScalar(value) {
+  if (typeof value === "number") return String(value);
+  const v = String(value);
+  if (v === "") return '""';
+  const unsafe = /^\s|\s$/.test(v) || /:\s|:$/.test(v) || /(^|\s)#/.test(v) || /^[-?:,[\]{}&*!|>'"%@`]/.test(v) || /^(true|false|null|yes|no|on|off|~)$/i.test(v) || /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(v);
+  return unsafe ? JSON.stringify(v) : v;
+}
+function unquote(raw) {
+  if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+    try {
+      return String(JSON.parse(raw));
+    } catch {
+    }
+  }
+  if (raw.length >= 2 && raw.startsWith("'") && raw.endsWith("'")) {
+    return raw.slice(1, -1).replace(/''/g, "'");
+  }
+  return raw;
+}
 function serializeFrontmatter(obj) {
-  const lines = Object.entries(obj).map(([k, v]) => `${k}: ${v}`);
+  const lines = Object.entries(obj).map(([key, value]) => `${key}: ${yamlScalar(value)}`);
   return `---
 ${lines.join("\n")}
 ---
 `;
 }
-function nextStepNote(title, priority, existing, date = nowStr()) {
-  const id = existing?.id ?? (idFromTitle(title) || `step-${date}`);
-  const fm = {
-    id,
-    title,
-    status: existing?.status ?? "pending",
-    priority,
-    created_at: existing?.createdAt ?? date
-  };
-  if (existing?.snoozeUntil) fm.snooze_until = existing.snoozeUntil;
-  if (existing?.order != null) fm.order = existing.order;
-  return { id, content: serializeFrontmatter(fm) };
+function setFrontmatterKeys(text, patch) {
+  const match = FRONTMATTER.exec(text);
+  if (!match) {
+    const lines = Object.entries(patch).filter(([, value]) => value !== null).map(([key, value]) => `${key}: ${yamlScalar(value)}`);
+    return `---
+${lines.join("\n")}
+---
+${text}`;
+  }
+  const [, open, block, close] = match;
+  const eol = open.includes("\r\n") ? "\r\n" : "\n";
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const line of block.length ? block.split(/\r?\n/) : []) {
+    const idx = line.indexOf(":");
+    const key = idx <= 0 ? "" : line.slice(0, idx).trim();
+    if (!key || !(key in patch)) {
+      out.push(line);
+      continue;
+    }
+    seen.add(key);
+    const value = patch[key];
+    if (value !== null) out.push(`${key}: ${yamlScalar(value)}`);
+  }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || seen.has(key)) continue;
+    out.push(`${key}: ${yamlScalar(value)}`);
+  }
+  return `${open}${out.join(eol)}${close}${eol}${text.slice(match[0].length)}`;
 }
-function lessonNote(claim, category, existing, date = nowStr()) {
-  const id = existing?.id ?? (idFromTitle(claim) || `lesson-${date}`);
-  const content = serializeFrontmatter({
-    id,
-    claim,
-    category,
-    week: existing?.week ?? date,
-    created_at: existing?.createdAt ?? date
-  });
-  return { id, content };
+function nextStepNote(title, priority, id, date = nowStr()) {
+  return serializeFrontmatter({ id, title, status: "pending", priority, created_at: date });
+}
+function lessonNote(claim, category, id, date = nowStr()) {
+  return serializeFrontmatter({ id, claim, category, week: date, created_at: date });
 }
 function appendReply(raw, text, date = nowStr()) {
   const sep = raw.endsWith("\n") ? "\n" : "\n\n";
@@ -119,7 +157,14 @@ ${text}
 `;
 }
 function bodyOf(text) {
-  return text.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  const match = FRONTMATTER.exec(text);
+  return match ? text.slice(match[0].length) : text;
+}
+function splitNote(text) {
+  const match = FRONTMATTER.exec(text);
+  if (!match) return { head: "", body: text };
+  return { head: `${match[1]}${match[2]}${match[3]}
+`, body: text.slice(match[0].length) };
 }
 async function ensureFolder(app, path) {
   const exists = await app.vault.adapter.exists(path);
@@ -139,6 +184,18 @@ function uniqueNotePath(app, folder, base) {
     n++;
   }
   return candidate;
+}
+async function uniqueId(app, folder, base) {
+  const taken = /* @__PURE__ */ new Set();
+  for (const f of await readAllMarkdown(app)) {
+    if (!f.path.startsWith(folder)) continue;
+    const fm = parseFrontmatter(await app.vault.cachedRead(f));
+    taken.add(fm.id ?? idFromTitle(f.basename));
+  }
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
 }
 async function loadLetters(app, folder) {
   const files = await readAllMarkdown(app);
@@ -297,40 +354,84 @@ async function applyOrder(app, folder, orderedIds) {
     const file = byId.get(orderedIds[i]);
     if (!file) continue;
     const text = await app.vault.cachedRead(file);
-    const fm = parseFrontmatter(text);
-    fm.order = i + 1;
-    await app.vault.modify(file, serializeFrontmatter(fm) + bodyOf(text));
+    await app.vault.modify(file, setFrontmatterKeys(text, { order: i + 1 }));
   }
 }
 function wireReorder(items, onReorder) {
-  let dragId = null;
   const ids = items.map((i) => i.id);
+  let dragId = null;
+  let hoverId = null;
+  const hasClass = (node, cls) => typeof node?.classList?.contains === "function" ? node.classList.contains(cls) : typeof node?.hasClass === "function" && node.hasClass(cls);
+  const closestClass = (node, cls) => {
+    let cur = node;
+    while (cur) {
+      if (hasClass(cur, cls)) return cur;
+      cur = cur.parentNode ?? cur.parent ?? null;
+    }
+    return null;
+  };
+  const cardFor = (node) => {
+    let cur = node;
+    while (cur) {
+      const found = items.find((i) => i.el === cur);
+      if (found) return found;
+      cur = cur.parentNode ?? cur.parent ?? null;
+    }
+    return null;
+  };
+  const cardUnder = (evt) => {
+    const doc = typeof document === "undefined" ? null : document;
+    const { clientX: x, clientY: y } = evt ?? {};
+    const at = doc && typeof doc.elementFromPoint === "function" && typeof x === "number" && typeof y === "number" ? doc.elementFromPoint(x, y) : null;
+    return cardFor(at ?? evt?.target ?? null);
+  };
+  const markTarget = (card) => {
+    hoverId = card && card.id !== dragId ? card.id : null;
+    for (const item of items) {
+      if (item.id === hoverId) item.el.addClass("kedge-drop-target");
+      else item.el.removeClass("kedge-drop-target");
+    }
+  };
+  const settle = (commit) => {
+    const moved = dragId;
+    const target = hoverId;
+    dragId = null;
+    markTarget(null);
+    for (const item of items) item.el.removeClass("kedge-dragging");
+    if (!commit || !moved || !target || moved === target || !ids.includes(moved)) return;
+    const next = ids.filter((id) => id !== moved);
+    next.splice(next.indexOf(target), 0, moved);
+    void onReorder(next);
+  };
   for (const item of items) {
     const el = item.el;
-    el.setAttribute("draggable", "true");
-    el.addEventListener("dragstart", (evt) => {
+    el.addEventListener("pointerdown", (evt) => {
+      if (dragId) return;
+      if (typeof evt?.button === "number" && evt.button !== 0) return;
+      const fromGrip = closestClass(evt?.target, "kedge-grip") !== null;
+      if (evt?.pointerType === "touch" && !fromGrip) return;
+      if (!fromGrip) {
+        if (closestClass(evt?.target, "kedge-actions")) return;
+        if (evt?.target?.closest?.("input, textarea, select, a, button")) return;
+      }
       dragId = item.id;
       el.addClass("kedge-dragging");
-      evt?.dataTransfer?.setData?.("text/plain", item.id);
-    });
-    el.addEventListener("dragend", () => {
-      dragId = null;
-      el.removeClass("kedge-dragging");
-    });
-    el.addEventListener("dragover", (evt) => {
-      if (!dragId || dragId === item.id) return;
+      try {
+        el.setPointerCapture?.(evt.pointerId);
+      } catch {
+      }
       evt?.preventDefault?.();
-      el.addClass("kedge-drop-target");
     });
-    el.addEventListener("dragleave", () => el.removeClass("kedge-drop-target"));
-    el.addEventListener("drop", (evt) => {
+    el.addEventListener("pointermove", (evt) => {
+      if (!dragId) return;
       evt?.preventDefault?.();
-      el.removeClass("kedge-drop-target");
-      const moved = dragId ?? evt?.dataTransfer?.getData?.("text/plain") ?? null;
-      if (!moved || moved === item.id || !ids.includes(moved)) return;
-      const next = ids.filter((id) => id !== moved);
-      next.splice(next.indexOf(item.id), 0, moved);
-      void onReorder(next);
+      markTarget(cardUnder(evt));
+    });
+    el.addEventListener("pointerup", () => {
+      if (dragId) settle(true);
+    });
+    el.addEventListener("pointercancel", () => {
+      if (dragId) settle(false);
     });
   }
 }
@@ -435,25 +536,25 @@ var NextStepModal = class extends import_obsidian.Modal {
     const { app, settings } = this.plugin;
     const priority = priorityFromLabel(this.priorityChoice.getValue());
     const existing = this.existing;
-    const { id, content } = nextStepNote(
-      title,
-      priority,
-      existing ? {
-        id: existing.id,
-        status: existing.status,
-        snoozeUntil: existing.snoozeUntil,
-        createdAt: existing.createdAt,
-        order: existing.order
-      } : void 0
-    );
-    const path = existing?.path ?? uniqueNotePath(app, settings.nextStepFolder, id);
-    let body = "";
-    const file = app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian.TFile) {
-      body = bodyOf(await app.vault.cachedRead(file));
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof import_obsidian.TFile)) {
+        new import_obsidian.Notice("Step file not found.");
+        return;
+      }
+      const raw = await app.vault.cachedRead(file);
+      await app.vault.modify(file, setFrontmatterKeys(raw, { title, priority }));
+      new import_obsidian.Notice("Next step updated.");
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.nextStepFolder,
+        idFromTitle(title) || `step-${nowStr()}`
+      );
+      const path = uniqueNotePath(app, settings.nextStepFolder, id);
+      await saveNote(app, path, nextStepNote(title, priority, id));
+      new import_obsidian.Notice("Next step created.");
     }
-    await saveNote(app, path, content + body);
-    new import_obsidian.Notice(existing ? "Next step updated." : "Next step created.");
     this.close();
     await this.onDone();
   }
@@ -502,19 +603,25 @@ var LessonModal = class extends import_obsidian.Modal {
     const category = this.categoryEl.value.trim();
     const { app, settings } = this.plugin;
     const existing = this.existing;
-    const { id, content } = lessonNote(
-      claim,
-      category,
-      existing ? { id: existing.id, week: existing.week, createdAt: existing.createdAt } : void 0
-    );
-    const path = existing?.path ?? uniqueNotePath(app, settings.lessonFolder, id);
-    let body = "";
-    const file = app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian.TFile) {
-      body = bodyOf(await app.vault.cachedRead(file));
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof import_obsidian.TFile)) {
+        new import_obsidian.Notice("Lesson file not found.");
+        return;
+      }
+      const raw = await app.vault.cachedRead(file);
+      await app.vault.modify(file, setFrontmatterKeys(raw, { claim, category }));
+      new import_obsidian.Notice("Lesson updated.");
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.lessonFolder,
+        idFromTitle(claim) || `lesson-${nowStr()}`
+      );
+      const path = uniqueNotePath(app, settings.lessonFolder, id);
+      await saveNote(app, path, lessonNote(claim, category, id));
+      new import_obsidian.Notice("Lesson saved.");
     }
-    await saveNote(app, path, content + body);
-    new import_obsidian.Notice(existing ? "Lesson updated." : "Lesson saved.");
     this.close();
     await this.onDone();
   }
@@ -629,19 +736,36 @@ var LetterModal = class extends import_obsidian.Modal {
   async save() {
     const title = this.titleEl.value.trim() || "Untitled letter";
     const sealDate = this.dateEl.value.trim() || nowStr();
+    const body = this.bodyEl.value;
     const existing = this.existing;
-    const id = existing?.id ?? (idFromTitle(title) || `letter-${Date.now()}`);
     const { app, settings } = this.plugin;
-    const path = existing?.path ?? uniqueNotePath(app, settings.letterFolder, id);
-    const fm = serializeFrontmatter({
-      id,
-      title,
-      status: existing?.status ?? "sealed",
-      seal_date: sealDate,
-      created_at: existing?.createdAt ?? nowStr()
-    });
-    await saveNote(app, path, fm + this.bodyEl.value);
-    new import_obsidian.Notice(existing ? `Letter saved. Returns ${sealDate}.` : `Letter sealed. Returns ${sealDate}.`);
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof import_obsidian.TFile)) {
+        new import_obsidian.Notice("Letter file not found.");
+        return;
+      }
+      const raw = await app.vault.cachedRead(file);
+      const { head } = splitNote(setFrontmatterKeys(raw, { title, seal_date: sealDate }));
+      await saveNote(app, existing.path, head + body);
+      new import_obsidian.Notice(`Letter saved. Returns ${sealDate}.`);
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.letterFolder,
+        idFromTitle(title) || `letter-${Date.now()}`
+      );
+      const path = uniqueNotePath(app, settings.letterFolder, id);
+      const fm = serializeFrontmatter({
+        id,
+        title,
+        status: "sealed",
+        seal_date: sealDate,
+        created_at: nowStr()
+      });
+      await saveNote(app, path, fm + body);
+      new import_obsidian.Notice(`Letter sealed. Returns ${sealDate}.`);
+    }
     this.close();
     await this.onDone();
   }
@@ -668,7 +792,7 @@ var KedgeView = class extends import_obsidian.View {
     this.container.style.height = "100%";
     this.container.empty();
     this.container.addClass("kedge-view");
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
   async render() {
     try {
@@ -677,9 +801,6 @@ var KedgeView = class extends import_obsidian.View {
       new import_obsidian.Notice("Kedge render failed: " + err.message);
       console.error("Kedge render failed:", err);
     }
-  }
-  refresh() {
-    return this.render();
   }
   /** Title row that leaves space for section-level actions. */
   sectionHead(parent, title) {
@@ -739,11 +860,11 @@ var KedgeView = class extends import_obsidian.View {
       const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
       doneBtn.onclick = async () => {
         await this.markStepDone(best.id);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
       snoozeBtn.onclick = async () => {
         await this.snoozeStep(best.id);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
     } else {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
@@ -775,7 +896,7 @@ var KedgeView = class extends import_obsidian.View {
         replyBtn.onclick = () => this.openReplyModal(letter);
         deleteBtn.onclick = async () => {
           await this.deleteLetter(letter);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
     } else {
@@ -802,7 +923,7 @@ var KedgeView = class extends import_obsidian.View {
         editBtn.onclick = () => this.openEditLetterModal(letter);
         deleteBtn.onclick = async () => {
           await this.deleteLetter(letter);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
     } else {
@@ -842,17 +963,17 @@ var KedgeView = class extends import_obsidian.View {
         } else {
           doBtn.onclick = async () => {
             await this.startStep(step.id);
-            await this.render();
+            await this.plugin.refreshDashboards();
           };
         }
         editBtn.onclick = () => this.openEditStepModal(step);
         snoozeBtn.onclick = async () => {
           await this.snoozeStep(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
         doneBtn.onclick = async () => {
           await this.markStepDone(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
@@ -872,7 +993,7 @@ var KedgeView = class extends import_obsidian.View {
         const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
         doBtn.onclick = async () => {
           await this.startStep(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
         for (const label of ["Edit", "Snooze", "Done"]) {
           const btn = actions.createEl("button", { cls: "mod-clickable", text: label });
@@ -927,7 +1048,7 @@ var KedgeView = class extends import_obsidian.View {
       editBtn.onclick = () => this.openEditLessonModal(lesson);
       deleteBtn.onclick = async () => {
         await this.deleteLesson(lesson);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
     }
     if (!this.lessonQuery.trim()) {
@@ -936,25 +1057,25 @@ var KedgeView = class extends import_obsidian.View {
   }
   // ---- modal launchers -------------------------------------------------
   openNewStepModal() {
-    new NextStepModal(this.app, this.plugin, () => this.refresh()).open();
+    new NextStepModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
   openNewLessonModal() {
-    new LessonModal(this.app, this.plugin, () => this.refresh()).open();
+    new LessonModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
   openEditLessonModal(lesson) {
-    new LessonModal(this.app, this.plugin, () => this.refresh(), lesson).open();
+    new LessonModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), lesson).open();
   }
   openReplyModal(letter) {
-    new ReplyModal(this.app, this.plugin, letter, () => this.refresh()).open();
+    new ReplyModal(this.app, this.plugin, letter, () => this.plugin.refreshDashboards()).open();
   }
   openEditStepModal(step) {
-    new NextStepModal(this.app, this.plugin, () => this.refresh(), step).open();
+    new NextStepModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), step).open();
   }
   openNewLetterModal() {
-    new LetterModal(this.app, this.plugin, () => this.refresh()).open();
+    new LetterModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
   openEditLetterModal(letter) {
-    new LetterModal(this.app, this.plugin, () => this.refresh(), letter).open();
+    new LetterModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), letter).open();
   }
   // ---- ordering --------------------------------------------------------
   sortSteps(list) {
@@ -967,11 +1088,11 @@ var KedgeView = class extends import_obsidian.View {
   }
   async reorderSteps(ids) {
     await applyOrder(this.plugin.app, this.plugin.settings.nextStepFolder, ids);
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
   async reorderLessons(ids) {
     await applyOrder(this.plugin.app, this.plugin.settings.lessonFolder, ids);
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
   // ---- note mutations --------------------------------------------------
   async deleteLesson(lesson) {
@@ -990,50 +1111,33 @@ var KedgeView = class extends import_obsidian.View {
       new import_obsidian.Notice("Letter deleted.");
     }
   }
-  async markStepDone(id) {
+  /**
+   * Patches one next step by id and leaves the rest of its note alone — a Done
+   * click used to rewrite the whole frontmatter block from a lossy parse, which
+   * cost the note its tags and its quoted values.
+   */
+  async patchStep(id, patch) {
     const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
+    for (const f of await readAllMarkdown(app)) {
       if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "done";
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
+      if ((fm.id ?? idFromTitle(f.basename)) !== id) continue;
+      await app.vault.modify(f, setFrontmatterKeys(text, patch));
+      return;
     }
   }
+  async markStepDone(id) {
+    await this.patchStep(id, { status: "done" });
+  }
   async snoozeStep(id) {
-    const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder)) continue;
-      const text = await app.vault.cachedRead(f);
-      const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "snoozed";
-        fm.snooze_until = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
-    }
+    const tomorrow = /* @__PURE__ */ new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await this.patchStep(id, { status: "snoozed", snooze_until: localDate(tomorrow) });
   }
   /** Marks a step as the one being worked on, clearing any snooze. */
   async startStep(id) {
-    const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder)) continue;
-      const text = await app.vault.cachedRead(f);
-      const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "working";
-        delete fm.snooze_until;
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
-    }
+    await this.patchStep(id, { status: "working", snooze_until: null });
   }
   async onClose() {
   }
@@ -1148,18 +1252,22 @@ ${err.stack}` : String(err);
    * Puts the dashboard in the right sidebar, where it stays visible beside
    * whatever note you are working in (Obsidian has no tab pinning, and a
    * sidebar leaf is what survives as "always visible").
+   *
+   * Mobile has no right split — `getRightLeaf` returns null there — so the same
+   * command opens the dashboard in its own tab instead of failing with "no right
+   * sidebar to attach to".
    */
   async activateDashboardInSidebar() {
     try {
-      const leaf = this.app.workspace.getRightLeaf(false);
+      const leaf = import_obsidian.Platform.isMobile ? this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE)[0] ?? this.app.workspace.getLeaf("tab") : this.app.workspace.getRightLeaf(false);
       if (!leaf) {
-        new import_obsidian.Notice("Kedge: no right sidebar to attach to");
+        new import_obsidian.Notice("Kedge: no leaf to attach to");
         return;
       }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
-      new import_obsidian.Notice("Kedge sidebar failed: " + err.message);
+      new import_obsidian.Notice("Kedge failed to open: " + err.message);
       console.error("Kedge sidebar failed:", err);
     }
   }

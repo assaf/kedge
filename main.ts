@@ -1,5 +1,6 @@
 import {
   App,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting,
@@ -54,8 +55,21 @@ export const DEFAULT_SETTINGS: KedgeSettings = {
   lessonFolder: "Kedge/Lessons",
 };
 
+/**
+ * The calendar date where the user is, `YYYY-MM-DD`.
+ *
+ * `toISOString()` is UTC: from 5pm in California it already reads tomorrow, so
+ * every date the plugin stamped (`created_at`, `week`, `snooze_until`,
+ * `seal_date`) and both of its comparisons (`isSnoozed`, `hasArrived`) were a
+ * day ahead all evening.
+ */
+export function localDate(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function nowStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDate();
 }
 
 export function idFromTitle(title: string): string {
@@ -75,68 +89,129 @@ export function priorityFromLabel(label: string): number {
   return index === -1 ? 3 : index + 1;
 }
 
+/**
+ * The frontmatter block: `---\n…\n---` plus the newline after it. CRLF notes
+ * match too — a note whose lines end `\r\n` used to parse as having no
+ * frontmatter at all, so it silently vanished from the dashboard.
+ */
+const FRONTMATTER = /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*)(\r?\n|$)/;
+
 export function parseFrontmatter(text: string): Record<string, any> {
-  const match = text.match(/^---\n([\s\S]*?)\n---/);
+  const match = FRONTMATTER.exec(text);
   if (!match) return {};
-  const block = match[1];
   const obj: Record<string, any> = {};
-  for (const line of block.split("\n")) {
+  for (const line of match[2].split(/\r?\n/)) {
     const idx = line.indexOf(":");
-    if (idx === -1) continue;
+    if (idx <= 0) continue; // list items and nested YAML carry no key on their line
     const key = line.slice(0, idx).trim();
-    const val = line.slice(idx + 1).trim().replace(/^"|"$/g, "");
-    obj[key] = val;
+    if (!key) continue;
+    obj[key] = unquote(line.slice(idx + 1).trim());
   }
   return obj;
 }
 
+/**
+ * A value as a YAML scalar: plain when that reads back unchanged, double-quoted
+ * when it would not. `Call the dentist: Monday` is not a valid plain scalar (a
+ * colon before a space opens a mapping), so it has to be quoted or Obsidian's
+ * Properties panel rejects the note.
+ */
+export function yamlScalar(value: string | number): string {
+  if (typeof value === "number") return String(value);
+  const v = String(value);
+  if (v === "") return '""';
+  const unsafe =
+    /^\s|\s$/.test(v) ||
+    /:\s|:$/.test(v) ||
+    /(^|\s)#/.test(v) ||
+    /^[-?:,[\]{}&*!|>'"%@`]/.test(v) ||
+    /^(true|false|null|yes|no|on|off|~)$/i.test(v) ||
+    /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(v);
+  return unsafe ? JSON.stringify(v) : v;
+}
+
+/** Inverts `yamlScalar` for the two quoted forms this plugin writes. */
+function unquote(raw: string): string {
+  if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+    try {
+      return String(JSON.parse(raw));
+    } catch {
+      /* hand-written YAML, not JSON-escaped */
+    }
+  }
+  if (raw.length >= 2 && raw.startsWith("'") && raw.endsWith("'")) {
+    return raw.slice(1, -1).replace(/''/g, "'");
+  }
+  return raw;
+}
+
 export function serializeFrontmatter(obj: Record<string, any>): string {
-  const lines = Object.entries(obj).map(([k, v]) => `${k}: ${v}`);
+  const lines = Object.entries(obj).map(([key, value]) => `${key}: ${yamlScalar(value)}`);
   return `---\n${lines.join("\n")}\n---\n`;
 }
 
-/** Frontmatter for a next-step note; pass `existing` to edit it in place. */
+/**
+ * Sets or removes single keys and leaves every other line of the block exactly
+ * as it was. Rewriting the whole block from a parse is how one drag or one Done
+ * click used to flatten `tags:` lists, drop unknown properties, and eat a
+ * trailing quote out of a title.
+ *
+ * `null` removes the key. Removal takes that key's own line only; a nested list
+ * underneath it would survive, which is why only scalar keys are removed here.
+ */
+export function setFrontmatterKeys(
+  text: string,
+  patch: Record<string, string | number | null>
+): string {
+  const match = FRONTMATTER.exec(text);
+  if (!match) {
+    const lines = Object.entries(patch)
+      .filter(([, value]) => value !== null)
+      .map(([key, value]) => `${key}: ${yamlScalar(value as string | number)}`);
+    return `---\n${lines.join("\n")}\n---\n${text}`;
+  }
+  const [, open, block, close] = match;
+  const eol = open.includes("\r\n") ? "\r\n" : "\n";
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const line of block.length ? block.split(/\r?\n/) : []) {
+    const idx = line.indexOf(":");
+    const key = idx <= 0 ? "" : line.slice(0, idx).trim();
+    if (!key || !(key in patch)) {
+      out.push(line);
+      continue;
+    }
+    seen.add(key);
+    const value = patch[key];
+    if (value !== null) out.push(`${key}: ${yamlScalar(value)}`);
+  }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || seen.has(key)) continue;
+    out.push(`${key}: ${yamlScalar(value)}`);
+  }
+  // The newline after the closing `---` belongs to the match, so put one back:
+  // without it the body ran straight into the delimiter.
+  return `${open}${out.join(eol)}${close}${eol}${text.slice(match[0].length)}`;
+}
+
+/** Frontmatter for a brand new next-step note; `id` is decided by the caller. */
 export function nextStepNote(
   title: string,
   priority: number,
-  existing?: {
-    id: string;
-    status: string;
-    snoozeUntil: string | null;
-    createdAt: string;
-    order: number | null;
-  },
+  id: string,
   date = nowStr()
-): { id: string; content: string } {
-  const id = existing?.id ?? (idFromTitle(title) || `step-${date}`);
-  const fm: Record<string, any> = {
-    id,
-    title,
-    status: existing?.status ?? "pending",
-    priority,
-    created_at: existing?.createdAt ?? date,
-  };
-  if (existing?.snoozeUntil) fm.snooze_until = existing.snoozeUntil;
-  if (existing?.order != null) fm.order = existing.order;
-  return { id, content: serializeFrontmatter(fm) };
+): string {
+  return serializeFrontmatter({ id, title, status: "pending", priority, created_at: date });
 }
 
-/** Frontmatter + id for a lesson note, editing `existing` when given. */
+/** Frontmatter for a brand new lesson note; `id` is decided by the caller. */
 export function lessonNote(
   claim: string,
   category: string,
-  existing?: { id: string; week: string; createdAt: string },
+  id: string,
   date = nowStr()
-): { id: string; content: string } {
-  const id = existing?.id ?? (idFromTitle(claim) || `lesson-${date}`);
-  const content = serializeFrontmatter({
-    id,
-    claim,
-    category,
-    week: existing?.week ?? date,
-    created_at: existing?.createdAt ?? date,
-  });
-  return { id, content };
+): string {
+  return serializeFrontmatter({ id, claim, category, week: date, created_at: date });
 }
 
 /** Append a dated reply section to a letter note. */
@@ -149,7 +224,15 @@ export function appendReply(raw: string, text: string, date = nowStr()): string 
 
 /** Text after the frontmatter block, so edits never clobber a note body. */
 function bodyOf(text: string): string {
-  return text.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  const match = FRONTMATTER.exec(text);
+  return match ? text.slice(match[0].length) : text;
+}
+
+/** The frontmatter block (trailing newline included) and the body after it. */
+function splitNote(text: string): { head: string; body: string } {
+  const match = FRONTMATTER.exec(text);
+  if (!match) return { head: "", body: text };
+  return { head: `${match[1]}${match[2]}${match[3]}\n`, body: text.slice(match[0].length) };
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {
@@ -173,6 +256,27 @@ function uniqueNotePath(app: App, folder: string, base: string): string {
     n++;
   }
   return candidate;
+}
+
+/**
+ * An id no note in `folder` is using yet: `base`, `base-2`, `base-3`…
+ *
+ * The file name was made unique while the id inside it was not, so a second
+ * "Email Sam" got the same id as the first (and any title with no latin
+ * characters got `step-<date>` every time). Every action finds its note by id
+ * and stops at the first match, so the twin could never be completed.
+ */
+async function uniqueId(app: App, folder: string, base: string): Promise<string> {
+  const taken = new Set<string>();
+  for (const f of await readAllMarkdown(app)) {
+    if (!f.path.startsWith(folder)) continue;
+    const fm = parseFrontmatter(await app.vault.cachedRead(f));
+    taken.add(fm.id ?? idFromTitle(f.basename));
+  }
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
 }
 
 async function loadLetters(app: App, folder: string): Promise<Letter[]> {
@@ -366,9 +470,7 @@ export async function applyOrder(app: App, folder: string, orderedIds: string[])
     const file = byId.get(orderedIds[i]);
     if (!file) continue;
     const text = await app.vault.cachedRead(file);
-    const fm = parseFrontmatter(text);
-    fm.order = i + 1;
-    await app.vault.modify(file, serializeFrontmatter(fm) + bodyOf(text));
+    await app.vault.modify(file, setFrontmatterKeys(text, { order: i + 1 }));
   }
 }
 
@@ -378,43 +480,117 @@ export interface DraggableCard {
 }
 
 /**
- * Drag-and-drop reordering over an explicit list of cards. It takes the cards
- * rather than querying the DOM, so the same code runs under Obsidian and under
- * the test harness.
+ * Reordering by dragging one card onto another. Pointer events instead of HTML5
+ * drag-and-drop, because iOS never fires `dragstart` on a plain div, so on the
+ * phone the old handlers did nothing at all.
+ *
+ * Touch pointers are implicitly captured by the element that got `pointerdown`,
+ * so every later `pointermove` still targets the card the drag started on. The
+ * card under the finger therefore comes from `document.elementFromPoint` rather
+ * than from `evt.target`. Mouse and pen take the same path, so there is a single
+ * code path to keep working.
+ *
+ * On touch the drag starts only at the grip: the grip carries `touch-action:
+ * none`, so the pane does not scroll away under the finger. A mouse can start
+ * anywhere on the card except on the card's own controls.
  */
 export function wireReorder(
   items: DraggableCard[],
   onReorder: (orderedIds: string[]) => void | Promise<void>
 ): void {
-  let dragId: string | null = null;
   const ids = items.map((i) => i.id);
+  let dragId: string | null = null;
+  let hoverId: string | null = null;
+
+  /** Class test that works on a real element and on the test double. */
+  const hasClass = (node: any, cls: string): boolean =>
+    typeof node?.classList?.contains === "function"
+      ? node.classList.contains(cls)
+      : typeof node?.hasClass === "function" && node.hasClass(cls);
+
+  const closestClass = (node: any, cls: string): any => {
+    let cur = node;
+    while (cur) {
+      if (hasClass(cur, cls)) return cur;
+      cur = cur.parentNode ?? cur.parent ?? null;
+    }
+    return null;
+  };
+
+  const cardFor = (node: any): DraggableCard | null => {
+    let cur = node;
+    while (cur) {
+      const found = items.find((i) => i.el === cur);
+      if (found) return found;
+      cur = cur.parentNode ?? cur.parent ?? null;
+    }
+    return null;
+  };
+
+  /** What the finger is over right now, capture or no capture. */
+  const cardUnder = (evt: any): DraggableCard | null => {
+    const doc: any = typeof document === "undefined" ? null : document;
+    const { clientX: x, clientY: y } = evt ?? {};
+    const at =
+      doc && typeof doc.elementFromPoint === "function" && typeof x === "number" && typeof y === "number"
+        ? doc.elementFromPoint(x, y)
+        : null;
+    return cardFor(at ?? evt?.target ?? null);
+  };
+
+  const markTarget = (card: DraggableCard | null) => {
+    hoverId = card && card.id !== dragId ? card.id : null;
+    for (const item of items) {
+      if (item.id === hoverId) item.el.addClass("kedge-drop-target");
+      else item.el.removeClass("kedge-drop-target");
+    }
+  };
+
+  /** Drops the drag state and repaints; `commit` decides whether the drop counts. */
+  const settle = (commit: boolean) => {
+    const moved = dragId;
+    const target = hoverId;
+    dragId = null;
+    markTarget(null);
+    for (const item of items) item.el.removeClass("kedge-dragging");
+    if (!commit || !moved || !target || moved === target || !ids.includes(moved)) return;
+    const next = ids.filter((id) => id !== moved);
+    next.splice(next.indexOf(target), 0, moved);
+    void onReorder(next);
+  };
 
   for (const item of items) {
     const el = item.el;
-    el.setAttribute("draggable", "true");
-    el.addEventListener("dragstart", (evt: any) => {
+    el.addEventListener("pointerdown", (evt: any) => {
+      if (dragId) return;
+      if (typeof evt?.button === "number" && evt.button !== 0) return;
+      const fromGrip = closestClass(evt?.target, "kedge-grip") !== null;
+      if (evt?.pointerType === "touch" && !fromGrip) return;
+      if (!fromGrip) {
+        if (closestClass(evt?.target, "kedge-actions")) return;
+        if (evt?.target?.closest?.("input, textarea, select, a, button")) return;
+      }
       dragId = item.id;
       el.addClass("kedge-dragging");
-      evt?.dataTransfer?.setData?.("text/plain", item.id);
-    });
-    el.addEventListener("dragend", () => {
-      dragId = null;
-      el.removeClass("kedge-dragging");
-    });
-    el.addEventListener("dragover", (evt: any) => {
-      if (!dragId || dragId === item.id) return;
+      try {
+        (el as any).setPointerCapture?.(evt.pointerId);
+      } catch {
+        /* best effort: elementFromPoint still resolves the target without it */
+      }
       evt?.preventDefault?.();
-      el.addClass("kedge-drop-target");
     });
-    el.addEventListener("dragleave", () => el.removeClass("kedge-drop-target"));
-    el.addEventListener("drop", (evt: any) => {
+    el.addEventListener("pointermove", (evt: any) => {
+      if (!dragId) return;
       evt?.preventDefault?.();
-      el.removeClass("kedge-drop-target");
-      const moved = dragId ?? evt?.dataTransfer?.getData?.("text/plain") ?? null;
-      if (!moved || moved === item.id || !ids.includes(moved)) return;
-      const next = ids.filter((id) => id !== moved);
-      next.splice(next.indexOf(item.id), 0, moved);
-      void onReorder(next);
+      markTarget(cardUnder(evt));
+    });
+    // pointerup commits; pointercancel (the browser took the gesture back, or the
+    // finger left the screen mid-drag) must never write an order.
+    el.addEventListener("pointerup", () => {
+      if (dragId) settle(true);
+    });
+    el.addEventListener("pointercancel", () => {
+      if (dragId) settle(false);
     });
   }
 }
@@ -577,29 +753,28 @@ class NextStepModal extends Modal {
     const { app, settings } = this.plugin;
     const priority = priorityFromLabel(this.priorityChoice.getValue());
     const existing = this.existing;
-    const { id, content } = nextStepNote(
-      title,
-      priority,
-      existing
-        ? {
-            id: existing.id,
-            status: existing.status,
-            snoozeUntil: existing.snoozeUntil,
-            createdAt: existing.createdAt,
-            order: existing.order,
-          }
-        : undefined
-    );
-    const path = existing?.path ?? uniqueNotePath(app, settings.nextStepFolder, id);
 
-    let body = "";
-    const file = app.vault.getAbstractFileByPath(path);
-    if (file instanceof TFile) {
-      body = bodyOf(await app.vault.cachedRead(file));
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof TFile)) {
+        new Notice("Step file not found.");
+        return;
+      }
+      // Patch the two fields that changed. Everything else in the note —
+      // status, order, tags, anything Obsidian wrote — stays exactly as it was.
+      const raw = await app.vault.cachedRead(file);
+      await app.vault.modify(file, setFrontmatterKeys(raw, { title, priority }));
+      new Notice("Next step updated.");
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.nextStepFolder,
+        idFromTitle(title) || `step-${nowStr()}`
+      );
+      const path = uniqueNotePath(app, settings.nextStepFolder, id);
+      await saveNote(app, path, nextStepNote(title, priority, id));
+      new Notice("Next step created.");
     }
-
-    await saveNote(app, path, content + body);
-    new Notice(existing ? "Next step updated." : "Next step created.");
     this.close();
     await this.onDone();
   }
@@ -667,21 +842,26 @@ class LessonModal extends Modal {
     const category = this.categoryEl.value.trim();
     const { app, settings } = this.plugin;
     const existing = this.existing;
-    const { id, content } = lessonNote(
-      claim,
-      category,
-      existing ? { id: existing.id, week: existing.week, createdAt: existing.createdAt } : undefined
-    );
-    const path = existing?.path ?? uniqueNotePath(app, settings.lessonFolder, id);
 
-    let body = "";
-    const file = app.vault.getAbstractFileByPath(path);
-    if (file instanceof TFile) {
-      body = bodyOf(await app.vault.cachedRead(file));
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof TFile)) {
+        new Notice("Lesson file not found.");
+        return;
+      }
+      const raw = await app.vault.cachedRead(file);
+      await app.vault.modify(file, setFrontmatterKeys(raw, { claim, category }));
+      new Notice("Lesson updated.");
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.lessonFolder,
+        idFromTitle(claim) || `lesson-${nowStr()}`
+      );
+      const path = uniqueNotePath(app, settings.lessonFolder, id);
+      await saveNote(app, path, lessonNote(claim, category, id));
+      new Notice("Lesson saved.");
     }
-
-    await saveNote(app, path, content + body);
-    new Notice(existing ? "Lesson updated." : "Lesson saved.");
     this.close();
     await this.onDone();
   }
@@ -838,19 +1018,39 @@ class LetterModal extends Modal {
   private async save(): Promise<void> {
     const title = this.titleEl.value.trim() || "Untitled letter";
     const sealDate = this.dateEl.value.trim() || nowStr();
+    const body = this.bodyEl.value;
     const existing = this.existing;
-    const id = existing?.id ?? (idFromTitle(title) || `letter-${Date.now()}`);
     const { app, settings } = this.plugin;
-    const path = existing?.path ?? uniqueNotePath(app, settings.letterFolder, id);
-    const fm = serializeFrontmatter({
-      id,
-      title,
-      status: existing?.status ?? "sealed",
-      seal_date: sealDate,
-      created_at: existing?.createdAt ?? nowStr(),
-    });
-    await saveNote(app, path, fm + this.bodyEl.value);
-    new Notice(existing ? `Letter saved. Returns ${sealDate}.` : `Letter sealed. Returns ${sealDate}.`);
+
+    if (existing) {
+      const file = app.vault.getAbstractFileByPath(existing.path);
+      if (!(file instanceof TFile)) {
+        new Notice("Letter file not found.");
+        return;
+      }
+      // Title and date are patched in place; the body is replaced wholesale
+      // because that is what the textarea showed.
+      const raw = await app.vault.cachedRead(file);
+      const { head } = splitNote(setFrontmatterKeys(raw, { title, seal_date: sealDate }));
+      await saveNote(app, existing.path, head + body);
+      new Notice(`Letter saved. Returns ${sealDate}.`);
+    } else {
+      const id = await uniqueId(
+        app,
+        settings.letterFolder,
+        idFromTitle(title) || `letter-${Date.now()}`
+      );
+      const path = uniqueNotePath(app, settings.letterFolder, id);
+      const fm = serializeFrontmatter({
+        id,
+        title,
+        status: "sealed",
+        seal_date: sealDate,
+        created_at: nowStr(),
+      });
+      await saveNote(app, path, fm + body);
+      new Notice(`Letter sealed. Returns ${sealDate}.`);
+    }
     this.close();
     await this.onDone();
   }
@@ -888,7 +1088,7 @@ export class KedgeView extends View {
     this.container.style.height = "100%";
     this.container.empty();
     this.container.addClass("kedge-view");
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
 
   async render(): Promise<void> {
@@ -898,10 +1098,6 @@ export class KedgeView extends View {
       new Notice("Kedge render failed: " + (err as Error).message);
       console.error("Kedge render failed:", err);
     }
-  }
-
-  private refresh(): Promise<void> {
-    return this.render();
   }
 
   /** Title row that leaves space for section-level actions. */
@@ -973,11 +1169,11 @@ export class KedgeView extends View {
       const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
       doneBtn.onclick = async () => {
         await this.markStepDone(best.id);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
       snoozeBtn.onclick = async () => {
         await this.snoozeStep(best.id);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
     } else {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
@@ -1016,7 +1212,7 @@ export class KedgeView extends View {
         replyBtn.onclick = () => this.openReplyModal(letter);
         deleteBtn.onclick = async () => {
           await this.deleteLetter(letter);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
     } else {
@@ -1045,7 +1241,7 @@ export class KedgeView extends View {
         editBtn.onclick = () => this.openEditLetterModal(letter);
         deleteBtn.onclick = async () => {
           await this.deleteLetter(letter);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
     } else {
@@ -1089,17 +1285,17 @@ export class KedgeView extends View {
         } else {
           doBtn.onclick = async () => {
             await this.startStep(step.id);
-            await this.render();
+            await this.plugin.refreshDashboards();
           };
         }
         editBtn.onclick = () => this.openEditStepModal(step);
         snoozeBtn.onclick = async () => {
           await this.snoozeStep(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
         doneBtn.onclick = async () => {
           await this.markStepDone(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
@@ -1120,7 +1316,7 @@ export class KedgeView extends View {
         const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
         doBtn.onclick = async () => {
           await this.startStep(step.id);
-          await this.render();
+          await this.plugin.refreshDashboards();
         };
         // Visible but disabled: a snoozed step cannot be edited, snoozed
         // again, or finished until it has been picked up.
@@ -1183,7 +1379,7 @@ export class KedgeView extends View {
       editBtn.onclick = () => this.openEditLessonModal(lesson);
       deleteBtn.onclick = async () => {
         await this.deleteLesson(lesson);
-        await this.render();
+        await this.plugin.refreshDashboards();
       };
     }
     // reordering only makes sense on the full, unfiltered list
@@ -1195,31 +1391,31 @@ export class KedgeView extends View {
   // ---- modal launchers -------------------------------------------------
 
   private openNewStepModal(): void {
-    new NextStepModal(this.app, this.plugin, () => this.refresh()).open();
+    new NextStepModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
 
   private openNewLessonModal(): void {
-    new LessonModal(this.app, this.plugin, () => this.refresh()).open();
+    new LessonModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
 
   private openEditLessonModal(lesson: Lesson): void {
-    new LessonModal(this.app, this.plugin, () => this.refresh(), lesson).open();
+    new LessonModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), lesson).open();
   }
 
   private openReplyModal(letter: Letter): void {
-    new ReplyModal(this.app, this.plugin, letter, () => this.refresh()).open();
+    new ReplyModal(this.app, this.plugin, letter, () => this.plugin.refreshDashboards()).open();
   }
 
   private openEditStepModal(step: NextStep): void {
-    new NextStepModal(this.app, this.plugin, () => this.refresh(), step).open();
+    new NextStepModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), step).open();
   }
 
   private openNewLetterModal(): void {
-    new LetterModal(this.app, this.plugin, () => this.refresh()).open();
+    new LetterModal(this.app, this.plugin, () => this.plugin.refreshDashboards()).open();
   }
 
   private openEditLetterModal(letter: Letter): void {
-    new LetterModal(this.app, this.plugin, () => this.refresh(), letter).open();
+    new LetterModal(this.app, this.plugin, () => this.plugin.refreshDashboards(), letter).open();
   }
 
   // ---- ordering --------------------------------------------------------
@@ -1240,12 +1436,12 @@ export class KedgeView extends View {
 
   private async reorderSteps(ids: string[]): Promise<void> {
     await applyOrder(this.plugin.app, this.plugin.settings.nextStepFolder, ids);
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
 
   private async reorderLessons(ids: string[]): Promise<void> {
     await applyOrder(this.plugin.app, this.plugin.settings.lessonFolder, ids);
-    await this.render();
+    await this.plugin.refreshDashboards();
   }
 
   // ---- note mutations --------------------------------------------------
@@ -1268,52 +1464,39 @@ export class KedgeView extends View {
     }
   }
 
-  private async markStepDone(id: string): Promise<void> {
+  /**
+   * Patches one next step by id and leaves the rest of its note alone — a Done
+   * click used to rewrite the whole frontmatter block from a lossy parse, which
+   * cost the note its tags and its quoted values.
+   */
+  private async patchStep(
+    id: string,
+    patch: Record<string, string | number | null>
+  ): Promise<void> {
     const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
+    for (const f of await readAllMarkdown(app)) {
       if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "done";
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
+      if ((fm.id ?? idFromTitle(f.basename)) !== id) continue;
+      await app.vault.modify(f, setFrontmatterKeys(text, patch));
+      return;
     }
   }
 
+  private async markStepDone(id: string): Promise<void> {
+    await this.patchStep(id, { status: "done" });
+  }
+
   private async snoozeStep(id: string): Promise<void> {
-    const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder)) continue;
-      const text = await app.vault.cachedRead(f);
-      const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "snoozed";
-        fm.snooze_until = new Date(Date.now() + 86400000).toISOString().slice(0, 10); // +1 day
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
-    }
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await this.patchStep(id, { status: "snoozed", snooze_until: localDate(tomorrow) });
   }
 
   /** Marks a step as the one being worked on, clearing any snooze. */
   private async startStep(id: string): Promise<void> {
-    const { app, settings } = this.plugin;
-    const files = await readAllMarkdown(app);
-    for (const f of files) {
-      if (!f.path.startsWith(settings.nextStepFolder)) continue;
-      const text = await app.vault.cachedRead(f);
-      const fm = parseFrontmatter(text);
-      if ((fm.id ?? idFromTitle(f.basename)) === id) {
-        fm.status = "working";
-        delete fm.snooze_until;
-        await app.vault.modify(f, serializeFrontmatter(fm) + bodyOf(text));
-        return;
-      }
-    }
+    await this.patchStep(id, { status: "working", snooze_until: null });
   }
 
   async onClose(): Promise<void> {
@@ -1466,15 +1649,21 @@ export default class KedgePlugin extends Plugin {
    * Puts the dashboard in the right sidebar, where it stays visible beside
    * whatever note you are working in (Obsidian has no tab pinning, and a
    * sidebar leaf is what survives as "always visible").
+   *
+   * Mobile has no right split — `getRightLeaf` returns null there — so the same
+   * command opens the dashboard in its own tab instead of failing with "no right
+   * sidebar to attach to".
    */
   async activateDashboardInSidebar(): Promise<void> {
     try {
-      const leaf = this.app.workspace.getRightLeaf(false);
-      if (!leaf) { new Notice("Kedge: no right sidebar to attach to"); return; }
+      const leaf = Platform.isMobile
+        ? this.app.workspace.getLeavesOfType(VIEW_TYPE_KEDGE)[0] ?? this.app.workspace.getLeaf("tab")
+        : this.app.workspace.getRightLeaf(false);
+      if (!leaf) { new Notice("Kedge: no leaf to attach to"); return; }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
       this.app.workspace.revealLeaf(leaf);
     } catch (err) {
-      new Notice("Kedge sidebar failed: " + (err as Error).message);
+      new Notice("Kedge failed to open: " + (err as Error).message);
       console.error("Kedge sidebar failed:", err);
     }
   }
