@@ -18,13 +18,13 @@ By organizing into next steps, future letters, and lessons, I think I captured h
 
 ## Install Kedge
 
-Not in the community store, so there are three ways in.
+**From the community store.** Settings → Community plugins → Browse, search for Kedge. That's the normal path once it is listed; while the submission is in review, use one of the two below.
 
 **BRAT, which updates itself.** Install [BRAT](https://github.com/TfTHacker/obsidian42-brat), then *Add beta plugin* → `assaf/kedge`. Works on desktop and phone; each release shows up as an update.
 
 **Copy a release.** Grab `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/assaf/kedge/releases/latest) and put them in `<vault>/.obsidian/plugins/kedge/`.
 
-**Build it.** `pnpm install && pnpm build`, then copy the same three files.
+Building it yourself is `pnpm install && pnpm build`, then copy the same three files.
 
 Either way, enable it in Settings → Community plugins → Kedge.
 
@@ -40,6 +40,7 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 ## Changelog
 
+- 2026-11-04: 1.0.0. an mit license, a versions.json, and an install section that knows about the community store. nothing about the plugin itself changed.
 - 2026-11-03: next steps lose their button row, and the do button with it. edit, snooze and done sit under the ⋯ now; a snoozed step's ⋯ offers unsnooze instead, because state decides and the menu cannot then disagree with the step. unsnooze does the job do had, so nothing has to claim a step any more.
 - 2026-11-03: a lesson keeps one ⋯ on the right of its title instead of an edit and a delete button under every claim, and a scheduled letter does the same. the menu is obsidian's own, so it opens as a sheet on the phone and needs no positioning code. next steps got the same menu — edit, snooze, done, or unsnooze depending on the step's state.
 - 2026-11-03: notes stop getting damaged. changing one property (done, snoozed, order, an edit) now rewrites that line only, so tags lists, quoted titles and anything obsidian added survive. titles are quoted when they have to be, so a step called "email sam: invoice" no longer writes broken yaml. a repeated title gets its own id, so done reaches the note you clicked. dates are the local date, not utc, so an evening no longer stamps tomorrow.
