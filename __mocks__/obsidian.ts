@@ -12,6 +12,7 @@
 export const registeredCommands: any[] = [];
 export const notices: string[] = [];
 export const openedModals: any[] = [];
+export const openedMenus: Menu[] = [];
 
 export class El {
   tag: string;
@@ -239,6 +240,49 @@ export class Notice {
   constructor(message?: string) {
     if (message) notices.push(message);
   }
+}
+
+/** A menu item as tests see it: the title, the icon, and the click handler. */
+export class MenuItem {
+  title = '';
+  icon = '';
+  warning = false;
+  cb: (() => any) | null = null;
+
+  setTitle(title: string) { this.title = title; return this; }
+  setIcon(icon: string) { this.icon = icon; return this; }
+  setWarning(warning = true) { this.warning = warning; return this; }
+  setSection(_section: string) { return this; }
+  setChecked(_checked: boolean) { return this; }
+  setDisabled(_disabled: boolean) { return this; }
+  onClick(cb: () => any) { this.cb = cb; return this; }
+  /** What a real click on the menu entry does. */
+  click() { return this.cb?.(); }
+}
+
+export class Menu {
+  items: MenuItem[] = [];
+  separators = 0;
+  shownAt: any = null;
+
+  addItem(cb: (item: MenuItem) => any) {
+    const item = new MenuItem();
+    cb(item);
+    this.items.push(item);
+    return this;
+  }
+  addSeparator() { this.separators++; return this; }
+  showAtMouseEvent(evt: any) {
+    this.shownAt = evt ?? {};
+    openedMenus.push(this);
+    return this;
+  }
+  showAtPosition(pos: any) {
+    this.shownAt = pos ?? {};
+    openedMenus.push(this);
+    return this;
+  }
+  hide() { /* no-op */ }
 }
 
 export class Platform {

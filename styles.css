@@ -222,6 +222,51 @@
   background: var(--color-red);
 }
 
+/*
+ * The lesson caret. It sits on the title row with `margin-left: auto`, so it
+ * holds the right edge whether the claim is three words or a sentence, and
+ * `flex: 0 0 auto` keeps a long claim from squeezing it off. Transparent by
+ * default: the row should read as one line of text, not as a button bar.
+ */
+.kedge-claim {
+  flex: 1;
+  min-width: 0;
+}
+
+.kedge-menu-button {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: auto;
+  background: transparent;
+  color: var(--text-faint);
+  border: none;
+  box-shadow: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+@media (hover: hover) {
+  .kedge-menu-button:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+}
+
+.kedge-menu-button:active {
+  background: var(--background-modifier-hover);
+}
+
+/* Touch needs a target, not a glyph: 12px of padding is a thumb-sized hit
+   that costs nothing visually. */
+.is-mobile .kedge-menu-button {
+  padding: 8px 12px;
+  margin-top: -8px;
+  margin-bottom: -8px;
+}
+
 .kedge-meta {
   font-size: 0.82rem;
   color: var(--text-muted);

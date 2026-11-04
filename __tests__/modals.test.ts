@@ -1,5 +1,5 @@
 import { KedgeView, DEFAULT_SETTINGS, nowStr, addMonths } from '../main';
-import { TFile, El, notices, openedModals } from 'obsidian';
+import { TFile, El, Menu, notices, openedMenus, openedModals } from 'obsidian';
 
 /** Lets the fire-and-forget `void this.save()` handlers finish: every vault
  *  operation in the mock is an already-resolved promise, so draining the
@@ -115,6 +115,17 @@ function grip(card: El): El {
   const handle = card.all((e) => e.hasClass('kedge-grip'))[0];
   if (!handle) throw new Error('card has no grip');
   return handle;
+}
+
+/** The ▾ on a lesson card, and the menu it opens. */
+function lessonMenu(root: El): Menu {
+  const caret = section(root, 'Lessons').buttons().find((b) => b.hasClass('kedge-menu-button'));
+  if (!caret) throw new Error(`no lesson caret in ${JSON.stringify(section(root, 'Lessons').buttonTexts())}`);
+  const opened = openedMenus.length;
+  caret.onclick({});
+  const menu = openedMenus[opened];
+  if (!menu) throw new Error('the caret opened no menu');
+  return menu;
 }
 
 /**
@@ -274,11 +285,27 @@ describe('Lessons', () => {
     expect(created[0].content).toContain('category: sales');
   });
 
-  test('Edit updates the same note and keeps its id, week and created date', async () => {
+  test('a lesson row carries one caret, not two buttons', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    const card = cardsIn(section(root, 'Lessons'))[0];
+    expect(card.buttonTexts()).toEqual(['▾']);
+  });
+
+  test('the caret opens Edit and Delete, in that order', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    const menu = lessonMenu(root);
+    expect(menu.items.map((i) => i.title)).toEqual(['Edit', 'Delete']);
+  });
+
+  test('Edit from the menu updates the same note and keeps its id, week and created date', async () => {
     const { view, root, modified } = makeCtx();
     await view.render();
 
-    click(section(root, 'Lessons'), 'Edit');
+    await lessonMenu(root).items[0].click();
     const modal = lastModal();
     const inputs = modal.contentEl.ofTag('input');
     expect(inputs[0].value).toBe('Ship the boring version first'); // prefilled
@@ -296,11 +323,11 @@ describe('Lessons', () => {
     expect(modified[0].content).toContain('created_at: 2026-10-20');
   });
 
-  test('Delete removes the lesson note and re-renders without it', async () => {
+  test('Delete from the menu removes the lesson note and re-renders without it', async () => {
     const { view, root, deleted } = makeCtx();
     await view.render();
 
-    click(section(root, 'Lessons'), 'Delete');
+    await lessonMenu(root).items[1].click();
     await flush();
 
     expect(deleted).toEqual(['Kedge/Lessons/ship-it.md']);

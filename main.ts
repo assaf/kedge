@@ -9,6 +9,7 @@ import {
   TFile,
   Modal,
   Notice,
+  Menu,
 } from "obsidian";
 
 // --------------------------------------------------------------------- types
@@ -1366,21 +1367,37 @@ export class KedgeView extends View {
       dragCards.push({ id: lesson.id, el: card });
       const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
       head.createSpan({ cls: "kedge-grip", text: "⠿" });
-      head.createSpan({ text: lesson.claim });
+      head.createSpan({ cls: "kedge-claim", text: lesson.claim });
+      // One caret on the right instead of two buttons under every claim. The
+      // menu is Obsidian's own, so it positions itself and turns into a sheet
+      // on the phone without a line of positioning code here.
+      const menuBtn = head.createEl("button", {
+        cls: "kedge-menu-button",
+        text: "▾",
+      });
+      menuBtn.setAttribute("aria-label", "Lesson actions");
+      menuBtn.onclick = (evt: MouseEvent) => {
+        const menu = new Menu();
+        menu.addItem((item) =>
+          item
+            .setTitle("Edit")
+            .setIcon("pencil")
+            .onClick(() => this.openEditLessonModal(lesson)),
+        );
+        menu.addItem((item) =>
+          item
+            .setTitle("Delete")
+            .setIcon("trash")
+            .onClick(async () => {
+              await this.deleteLesson(lesson);
+              await this.plugin.refreshDashboards();
+            }),
+        );
+        menu.showAtMouseEvent(evt);
+      };
       const meta = card.createDiv({ cls: "kedge-meta" });
       if (lesson.category) meta.createEl("span", { text: lesson.category });
       if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });
-      const actions = card.createDiv({ cls: "kedge-actions" });
-      const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
-      const deleteBtn = actions.createEl("button", {
-        cls: "mod-clickable kedge-danger",
-        text: "Delete",
-      });
-      editBtn.onclick = () => this.openEditLessonModal(lesson);
-      deleteBtn.onclick = async () => {
-        await this.deleteLesson(lesson);
-        await this.plugin.refreshDashboards();
-      };
     }
     // reordering only makes sense on the full, unfiltered list
     if (!this.lessonQuery.trim()) {
