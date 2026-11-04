@@ -1108,6 +1108,36 @@ export class KedgeView extends View {
     return head.createDiv({ cls: "kedge-actions" });
   }
 
+  /**
+   * One `⋯` on the right of a row, holding that row's actions.
+   *
+   * It is Obsidian's own Menu rather than a popover of ours: the menu flips
+   * itself near a screen edge, and on the phone it becomes a sheet instead of
+   * a clipped box. The label is written once here so a row and its actions
+   * cannot drift apart.
+   */
+  private actionMenu(
+    parent: HTMLElement,
+    label: string,
+    items: Array<{ title: string; icon: string; run: () => any }>,
+  ): HTMLButtonElement {
+    const button = parent.createEl("button", { cls: "kedge-menu-button", text: "⋯" });
+    button.setAttribute("aria-label", label);
+    button.onclick = (evt: MouseEvent) => {
+      const menu = new Menu();
+      for (const item of items) {
+        menu.addItem((entry) =>
+          entry
+            .setTitle(item.title)
+            .setIcon(item.icon)
+            .onClick(() => item.run()),
+        );
+      }
+      menu.showAtMouseEvent(evt);
+    };
+    return button;
+  }
+
   /** "Open dashboard: ⌘⇧D  ·  New letter: ⌘⇧M  …", live bindings only. */
   private shortcutHints(entries: Array<[string, string]>): string {
     return entries
@@ -1233,17 +1263,17 @@ export class KedgeView extends View {
         // full detail stays on hover; the list keeps to one line per letter
         row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
         row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
-        const actions = row.createDiv({ cls: "kedge-actions" });
-        const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
-        const deleteBtn = actions.createEl("button", {
-          cls: "mod-clickable kedge-danger",
-          text: "Delete",
-        });
-        editBtn.onclick = () => this.openEditLetterModal(letter);
-        deleteBtn.onclick = async () => {
-          await this.deleteLetter(letter);
-          await this.plugin.refreshDashboards();
-        };
+        this.actionMenu(row, "Letter actions", [
+          { title: "Edit", icon: "pencil", run: () => this.openEditLetterModal(letter) },
+          {
+            title: "Delete",
+            icon: "trash",
+            run: async () => {
+              await this.deleteLetter(letter);
+              await this.plugin.refreshDashboards();
+            },
+          },
+        ]);
       }
     } else {
       scheduledSection.createDiv({
@@ -1368,33 +1398,17 @@ export class KedgeView extends View {
       const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
       head.createSpan({ cls: "kedge-grip", text: "⠿" });
       head.createSpan({ cls: "kedge-claim", text: lesson.claim });
-      // One caret on the right instead of two buttons under every claim. The
-      // menu is Obsidian's own, so it positions itself and turns into a sheet
-      // on the phone without a line of positioning code here.
-      const menuBtn = head.createEl("button", {
-        cls: "kedge-menu-button",
-        text: "⋯",
-      });
-      menuBtn.setAttribute("aria-label", "Lesson actions");
-      menuBtn.onclick = (evt: MouseEvent) => {
-        const menu = new Menu();
-        menu.addItem((item) =>
-          item
-            .setTitle("Edit")
-            .setIcon("pencil")
-            .onClick(() => this.openEditLessonModal(lesson)),
-        );
-        menu.addItem((item) =>
-          item
-            .setTitle("Delete")
-            .setIcon("trash")
-            .onClick(async () => {
-              await this.deleteLesson(lesson);
-              await this.plugin.refreshDashboards();
-            }),
-        );
-        menu.showAtMouseEvent(evt);
-      };
+      this.actionMenu(head, "Lesson actions", [
+        { title: "Edit", icon: "pencil", run: () => this.openEditLessonModal(lesson) },
+        {
+          title: "Delete",
+          icon: "trash",
+          run: async () => {
+            await this.deleteLesson(lesson);
+            await this.plugin.refreshDashboards();
+          },
+        },
+      ]);
       const meta = card.createDiv({ cls: "kedge-meta" });
       if (lesson.category) meta.createEl("span", { text: lesson.category });
       if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });

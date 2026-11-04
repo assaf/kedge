@@ -117,14 +117,15 @@ function grip(card: El): El {
   return handle;
 }
 
-/** The ⋯ on a lesson card, and the menu it opens. */
-function lessonMenu(root: El): Menu {
-  const caret = section(root, 'Lessons').buttons().find((b) => b.hasClass('kedge-menu-button'));
-  if (!caret) throw new Error(`no lesson caret in ${JSON.stringify(section(root, 'Lessons').buttonTexts())}`);
+/** The ⋯ in the first row of `title`, and the menu it opens. */
+function rowMenu(root: El, title = 'Lessons'): Menu {
+  const where = section(root, title);
+  const caret = where.buttons().find((b) => b.hasClass('kedge-menu-button'));
+  if (!caret) throw new Error(`no ⋯ in ${title}: ${JSON.stringify(where.buttonTexts())}`);
   const opened = openedMenus.length;
   caret.onclick({});
   const menu = openedMenus[opened];
-  if (!menu) throw new Error('the caret opened no menu');
+  if (!menu) throw new Error(`the ⋯ in ${title} opened no menu`);
   return menu;
 }
 
@@ -285,7 +286,7 @@ describe('Lessons', () => {
     expect(created[0].content).toContain('category: sales');
   });
 
-  test('a lesson row carries one caret, not two buttons', async () => {
+  test('a lesson row carries one ⋯, not two buttons', async () => {
     const { view, root } = makeCtx();
     await view.render();
 
@@ -293,11 +294,11 @@ describe('Lessons', () => {
     expect(card.buttonTexts()).toEqual(['⋯']);
   });
 
-  test('the caret opens Edit and Delete, in that order', async () => {
+  test('the ⋯ opens Edit and Delete, in that order', async () => {
     const { view, root } = makeCtx();
     await view.render();
 
-    const menu = lessonMenu(root);
+    const menu = rowMenu(root);
     expect(menu.items.map((i) => i.title)).toEqual(['Edit', 'Delete']);
   });
 
@@ -305,7 +306,7 @@ describe('Lessons', () => {
     const { view, root, modified } = makeCtx();
     await view.render();
 
-    await lessonMenu(root).items[0].click();
+    await rowMenu(root).items[0].click();
     const modal = lastModal();
     const inputs = modal.contentEl.ofTag('input');
     expect(inputs[0].value).toBe('Ship the boring version first'); // prefilled
@@ -327,7 +328,7 @@ describe('Lessons', () => {
     const { view, root, deleted } = makeCtx();
     await view.render();
 
-    await lessonMenu(root).items[1].click();
+    await rowMenu(root).items[1].click();
     await flush();
 
     expect(deleted).toEqual(['Kedge/Lessons/ship-it.md']);
@@ -592,8 +593,8 @@ describe('Future letters', () => {
     // the date is not printed, it sits in the row tooltip
     expect(row.title).toBe('opens 1 Jan 2099 · written 2026-11-02');
 
-    // actions sit beside the title
-    expect(row.buttonTexts()).toEqual(['Edit', 'Delete']);
+    // one ⋯ sits beside the title, holding the actions
+    expect(row.buttonTexts()).toEqual(['⋯']);
 
     // and it is not in the arrived pile
     const arrived = section(root, 'From past you');
@@ -601,11 +602,19 @@ describe('Future letters', () => {
     expect(arrived.all((e) => e.text === 'Dear future me').length).toBeGreaterThan(0);
   });
 
+  test('the ⋯ on a scheduled letter opens Edit and Delete', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    const menu = rowMenu(root, 'Scheduled letters');
+    expect(menu.items.map((i) => i.title)).toEqual(['Edit', 'Delete']);
+  });
+
   test('editing a letter moves it to arrived when its date passes', async () => {
     const { view, root, modified } = makeCtx();
     await view.render();
 
-    click(section(root, 'Scheduled letters'), 'Edit');
+    await rowMenu(root, 'Scheduled letters').items[0].click();
     const modal = lastModal();
     const inputs = modal.contentEl.ofTag('input');
     expect(inputs[0].value).toBe('Dear me in a year'); // title prefilled
@@ -632,7 +641,7 @@ describe('Future letters', () => {
     const { view, root, deleted } = makeCtx();
     await view.render();
 
-    click(section(root, 'Scheduled letters'), 'Delete');
+    await rowMenu(root, 'Scheduled letters').items[1].click();
     await flush();
 
     expect(deleted).toEqual(['Kedge/Letters/dear-me-in-a-year.md']);

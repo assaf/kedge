@@ -135,11 +135,6 @@
   color: var(--text-normal);
 }
 
-.kedge-letter-row .kedge-actions {
-  flex: 0 0 auto;
-  margin-top: 0;
-}
-
 .kedge-card.kedge-snoozed:hover {
   transform: none;
   box-shadow: none;
