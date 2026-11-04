@@ -117,16 +117,20 @@ function grip(card: El): El {
   return handle;
 }
 
-/** The ⋯ in the first row of `title`, and the menu it opens. */
-function rowMenu(root: El, title = 'Lessons'): Menu {
-  const where = section(root, title);
-  const caret = where.buttons().find((b) => b.hasClass('kedge-menu-button'));
-  if (!caret) throw new Error(`no ⋯ in ${title}: ${JSON.stringify(where.buttonTexts())}`);
+/** The ⋯ inside `el` — a card, a row, or a whole section — and its menu. */
+function menuIn(el: El): Menu {
+  const caret = el.all((e) => e.hasClass('kedge-menu-button'))[0];
+  if (!caret) throw new Error(`no ⋯ here: ${JSON.stringify(el.buttonTexts())}`);
   const opened = openedMenus.length;
   caret.onclick({});
   const menu = openedMenus[opened];
-  if (!menu) throw new Error(`the ⋯ in ${title} opened no menu`);
+  if (!menu) throw new Error('the ⋯ opened no menu');
   return menu;
+}
+
+/** The ⋯ in the first row of `title`, and the menu it opens. */
+function rowMenu(root: El, title = 'Lessons'): Menu {
+  return menuIn(section(root, title));
 }
 
 /**
@@ -208,8 +212,8 @@ describe('New next step', () => {
     // sits third; it carries the same title as the first one
     const cards = cardsIn(section(root, 'Next steps'));
     expect(cards.map(cardTitle)).toEqual(['Call the dentist', 'Renew passport', 'Call the dentist']);
-    const done = cards[2].buttons().find((b) => b.text === 'Done')!;
-    await done.onclick();
+    // Done is behind the card's ⋯ now: Edit, Snooze, Done
+    await menuIn(cards[2]).items[2].click();
     await flush();
 
     expect(modified).toHaveLength(1);
@@ -341,7 +345,7 @@ describe('Editing and reordering next steps', () => {
     const { view, root, modified } = makeCtx();
     await view.render();
 
-    click(section(root, 'Next steps'), 'Edit');
+    await menuIn(cardsIn(section(root, 'Next steps'))[0]).items[0].click();
     const modal = lastModal();
     const input = modal.contentEl.ofTag('input')[0];
     expect(input.value).toBe('Call the dentist');
@@ -506,7 +510,7 @@ describe('Reordering lessons', () => {
 });
 
 describe('Snoozed next steps', () => {
-  test('sit in their own group at the bottom, dimmed, with disabled actions', async () => {
+  test('sit in their own group at the bottom, offering the way back', async () => {
     const { view, root } = makeCtx();
     await view.render();
 
@@ -517,9 +521,11 @@ describe('Snoozed next steps', () => {
     const snoozed = listEl.children.filter((c) => c.hasClass('kedge-snoozed'));
     expect(snoozed).toHaveLength(1);
     expect(cardTitle(snoozed[0])).toBe('File taxes');
-    // Do stays usable; the rest are visible but disabled
-    expect(snoozed[0].buttonTexts()).toEqual(['Do', 'Edit', 'Snooze', 'Done']);
-    expect(snoozed[0].buttons().map((b) => b.disabled)).toEqual([false, true, true, true]);
+    // Do stays a button; everything else about the state is in the menu
+    expect(snoozed[0].buttonTexts()).toEqual(['⋯', 'Do']);
+    expect(snoozed[0].buttons().find((b) => b.text === 'Do')!.disabled).toBe(false);
+    // a snoozed step offers the way back out, and nothing it cannot do yet
+    expect(menuIn(snoozed[0]).items.map((i) => i.title)).toEqual(['Unsnooze']);
     expect(snoozed[0].hasClass('kedge-draggable')).toBe(false); // not reorderable
 
     // the group really is below the active cards
@@ -527,8 +533,36 @@ describe('Snoozed next steps', () => {
     const snoozedIndex = listEl.children.indexOf(snoozed[0]);
     expect(snoozedIndex).toBeGreaterThan(activeIndex);
 
-    // active cards keep the full action set
-    expect(cardsIn(listEl)[0].buttonTexts()).toEqual(['Do', 'Edit', 'Snooze', 'Done']);
+    // active cards keep the full action set, one level down
+    expect(cardsIn(listEl)[0].buttonTexts()).toEqual(['⋯', 'Do']);
+    expect(menuIn(cardsIn(listEl)[0]).items.map((i) => i.title)).toEqual([
+      'Edit',
+      'Snooze',
+      'Done',
+    ]);
+  });
+
+  test('Unsnooze picks it back up as pending, keeping the note intact', async () => {
+    const { view, root, modified } = makeCtx();
+    await view.render();
+
+    const snoozed = section(root, 'Next steps').children.find((c) => c.hasClass('kedge-snoozed'))!;
+    await menuIn(snoozed).items[0].click();
+    await flush();
+
+    expect(modified[0].path).toBe('Kedge/Next-Steps/file-taxes.md');
+    expect(modified[0].content).toContain('status: pending');
+    // the date is gone, not blank: the step is simply pending again
+    expect(modified[0].content).not.toContain('snooze_until');
+    expect(modified[0].content).toContain('id: file-taxes');
+    expect(modified[0].content).toContain('priority: 2');
+
+    // back in the active list, so it offers the way forward again
+    const after = section(root, 'Next steps');
+    expect(after.children.filter((c) => c.hasClass('kedge-snoozed'))).toHaveLength(0);
+    const back = cardsIn(after).find((c) => cardTitle(c) === 'File taxes')!;
+    expect(back).toBeTruthy();
+    expect(menuIn(back).items.map((i) => i.title)).toEqual(['Edit', 'Snooze', 'Done']);
   });
 
   test('Do marks it as being worked on, without opening a tab', async () => {
@@ -536,7 +570,7 @@ describe('Snoozed next steps', () => {
     await view.render();
 
     const snoozed = section(root, 'Next steps').children.find((c) => c.hasClass('kedge-snoozed'))!;
-    await snoozed.buttons()[0].onclick();
+    await snoozed.buttons().find((b) => b.text === 'Do')!.onclick();
     await flush();
 
     expect(modified[0].path).toBe('Kedge/Next-Steps/file-taxes.md');
@@ -555,7 +589,7 @@ describe('Snoozed next steps', () => {
     await view.render();
 
     const first = cardsIn(section(root, 'Next steps'))[0];
-    await first.buttons()[0].onclick(); // "Do"
+    await first.buttons().find((b) => b.text === 'Do')!.onclick();
     await flush();
 
     expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
@@ -567,8 +601,8 @@ describe('Snoozed next steps', () => {
     const afterCards = cardsIn(section(root, 'Next steps'));
     const working = afterCards.find((c) => cardTitle(c) === 'Call the dentist')!;
     const other = afterCards.find((c) => cardTitle(c) === 'Renew passport')!;
-    expect(working.buttons()[0].disabled).toBe(true);
-    expect(other.buttons()[0].disabled).toBe(false);
+    expect(working.buttons().find((x) => x.text === 'Do')!.disabled).toBe(true);
+    expect(other.buttons().find((x) => x.text === 'Do')!.disabled).toBe(false);
   });
 });
 

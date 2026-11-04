@@ -40,6 +40,7 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 ## Changelog
 
+- 2026-11-03: next steps lose their button row. edit, snooze and done sit under the ⋯ now, and a snoozed step's ⋯ offers unsnooze instead: state decides, so the menu and the step cannot disagree. do stays a button on every card, because do is the work.
 - 2026-11-03: a lesson keeps one ⋯ on the right of its title instead of an edit and a delete button under every claim, and a scheduled letter does the same. the menu is obsidian's own, so it opens as a sheet on the phone and needs no positioning code. next steps keep their four buttons: there the buttons are the work.
 - 2026-11-03: notes stop getting damaged. changing one property (done, snoozed, order, an edit) now rewrites that line only, so tags lists, quoted titles and anything obsidian added survive. titles are quoted when they have to be, so a step called "email sam: invoice" no longer writes broken yaml. a repeated title gets its own id, so done reaches the note you clicked. dates are the local date, not utc, so an evening no longer stamps tomorrow.
 - 2026-11-03: works on the phone. reorder is pointer-driven and a touch drag starts at ⠿, because ios never fires html5 drag events on a div. the sidebar command opens a tab where there is no right split. colours come from the theme now, so it stops looking like a light app inside a dark one.

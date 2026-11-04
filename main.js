@@ -830,6 +830,33 @@ var KedgeView = class extends import_obsidian.View {
     };
     return button;
   }
+  /**
+   * The housekeeping on a step. What is on the menu is a function of state, so
+   * the two can never disagree: snoozed offers the way back, everything else
+   * offers the way forward. `Do` is not here — it is the work, and stays a
+   * button on the card.
+   *
+   * A snoozed step still cannot be edited or finished until it has been picked
+   * up, which is why "Unsnooze" stands alone rather than joining Edit and Done.
+   */
+  stepMenu(parent, step) {
+    const after = (fn) => async () => {
+      await fn();
+      await this.plugin.refreshDashboards();
+    };
+    const items = isSnoozed(step) ? [
+      {
+        title: "Unsnooze",
+        icon: "clock",
+        run: after(() => this.unsnoozeStep(step.id))
+      }
+    ] : [
+      { title: "Edit", icon: "pencil", run: () => this.openEditStepModal(step) },
+      { title: "Snooze", icon: "clock", run: after(() => this.snoozeStep(step.id)) },
+      { title: "Done", icon: "check", run: after(() => this.markStepDone(step.id)) }
+    ];
+    this.actionMenu(parent, "Step actions", items);
+  }
   /** "Open dashboard: ⌘⇧D  ·  New letter: ⌘⇧M  …", live bindings only. */
   shortcutHints(entries) {
     return entries.map(([label, id]) => {
@@ -875,19 +902,10 @@ var KedgeView = class extends import_obsidian.View {
     if (pending.length > 0) {
       const best = pending[0];
       const card = bestSection.createDiv({ cls: "kedge-card" });
-      card.createDiv({ cls: "kedge-card-title", text: best.title });
+      const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
+      head.createSpan({ text: best.title });
+      this.stepMenu(head, best);
       card.createDiv({ cls: "kedge-card-body", text: "Do this now. Everything else can wait." });
-      const actions = card.createDiv({ cls: "kedge-actions" });
-      const doneBtn = actions.createEl("button", { cls: "mod-clickable", text: "Done" });
-      const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
-      doneBtn.onclick = async () => {
-        await this.markStepDone(best.id);
-        await this.plugin.refreshDashboards();
-      };
-      snoozeBtn.onclick = async () => {
-        await this.snoozeStep(best.id);
-        await this.plugin.refreshDashboards();
-      };
     } else {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
       empty.createDiv({ text: "No pending next steps." });
@@ -970,6 +988,7 @@ var KedgeView = class extends import_obsidian.View {
         const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
         head.createSpan({ cls: "kedge-grip", text: "\u283F" });
         head.createSpan({ text: step.title });
+        this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createEl("span", { text: `${priorityLabel(step.priority)} priority` });
         if (step.status === "working") {
@@ -977,9 +996,6 @@ var KedgeView = class extends import_obsidian.View {
         }
         const actions = card.createDiv({ cls: "kedge-actions" });
         const doBtn = actions.createEl("button", { cls: "mod-clickable", text: "Do" });
-        const editBtn = actions.createEl("button", { cls: "mod-clickable", text: "Edit" });
-        const snoozeBtn = actions.createEl("button", { cls: "mod-clickable", text: "Snooze" });
-        const doneBtn = actions.createEl("button", { cls: "mod-clickable", text: "Done" });
         if (step.status === "working") {
           doBtn.disabled = true;
         } else {
@@ -988,15 +1004,6 @@ var KedgeView = class extends import_obsidian.View {
             await this.plugin.refreshDashboards();
           };
         }
-        editBtn.onclick = () => this.openEditStepModal(step);
-        snoozeBtn.onclick = async () => {
-          await this.snoozeStep(step.id);
-          await this.plugin.refreshDashboards();
-        };
-        doneBtn.onclick = async () => {
-          await this.markStepDone(step.id);
-          await this.plugin.refreshDashboards();
-        };
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
     } else if (snoozedSteps.length === 0) {
@@ -1006,7 +1013,9 @@ var KedgeView = class extends import_obsidian.View {
       listSection.createDiv({ cls: "kedge-subhead", text: "Snoozed" });
       for (const step of snoozedSteps) {
         const card = listSection.createDiv({ cls: "kedge-card kedge-snoozed" });
-        card.createDiv({ cls: "kedge-card-title", text: step.title });
+        const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
+        head.createSpan({ text: step.title });
+        this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createEl("span", {
           text: step.snoozeUntil ? `snoozed until ${step.snoozeUntil}` : "snoozed"
@@ -1017,10 +1026,6 @@ var KedgeView = class extends import_obsidian.View {
           await this.startStep(step.id);
           await this.plugin.refreshDashboards();
         };
-        for (const label of ["Edit", "Snooze", "Done"]) {
-          const btn = actions.createEl("button", { cls: "mod-clickable", text: label });
-          btn.disabled = true;
-        }
       }
     }
     const lessons = await loadLessons(app, settings.lessonFolder);
@@ -1156,6 +1161,14 @@ var KedgeView = class extends import_obsidian.View {
     const tomorrow = /* @__PURE__ */ new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     await this.patchStep(id, { status: "snoozed", snooze_until: localDate(tomorrow) });
+  }
+  /**
+   * The way back out of a snooze: back to pending and back into the list, with
+   * no snooze date left behind. State only — it does not make the step the one
+   * being worked on, which is what `Do` is for.
+   */
+  async unsnoozeStep(id) {
+    await this.patchStep(id, { status: "pending", snooze_until: null });
   }
   /** Marks a step as the one being worked on, clearing any snooze. */
   async startStep(id) {

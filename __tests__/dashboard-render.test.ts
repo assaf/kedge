@@ -1,5 +1,5 @@
 import { KedgeView, DEFAULT_SETTINGS } from '../main';
-import { notices, El } from 'obsidian';
+import { notices, El, Menu, openedMenus } from 'obsidian';
 
 function makeVault(seed?: any[]) {
   const files: any[] = seed ?? [
@@ -41,6 +41,25 @@ function makeVault(seed?: any[]) {
   return { vault, files, modified, deleted };
 }
 
+/** The ⋯ inside `el`, and the menu it opens. */
+function menuIn(el: El): Menu {
+  const caret = el.all((e) => e.hasClass('kedge-menu-button'))[0];
+  if (!caret) throw new Error(`no ⋯ here: ${JSON.stringify(el.buttonTexts())}`);
+  const opened = openedMenus.length;
+  caret.onclick({});
+  const menu = openedMenus[opened];
+  if (!menu) throw new Error('the ⋯ opened no menu');
+  return menu;
+}
+
+function sectionEl(root: El, title: string): El {
+  const heading = root.all((e) => e.tag === 'h2' && e.text === title)[0];
+  let el = heading?.parent ?? null;
+  while (el && !el.hasClass('kedge-section')) el = el.parent;
+  if (!el) throw new Error(`no section "${title}"`);
+  return el;
+}
+
 function makeView(seed?: any[]) {
   const { vault, modified, deleted } = makeVault(seed);
   const plugin: any = {
@@ -68,9 +87,10 @@ describe('KedgeView.render', () => {
     const texts = root.buttonTexts();
     expect(texts).toContain('+ New step');
     expect(texts).toContain('+ New lesson');
-    expect(texts).toContain('Edit');
-    expect(texts).toContain('Delete');
     expect(texts).toContain('Reply to past me');
+    // edit/delete live in the row menus now, not on the surface
+    expect(texts).not.toContain('Edit');
+    expect(root.buttons().filter((b) => b.hasClass('kedge-menu-button')).length).toBeGreaterThan(0);
   });
 
   test('the header carries no date and no invented shortcuts', async () => {
@@ -141,9 +161,8 @@ describe('KedgeView.render', () => {
     const { view, root, modified } = makeView();
     await view.render();
 
-    const doneBtns = root.buttons().filter((b) => b.text === 'Done');
-    expect(doneBtns.length).toBeGreaterThan(0);
-    await doneBtns[0].onclick();
+    // Done sits behind the ⋯ on the card: Edit, Snooze, Done
+    await menuIn(sectionEl(root, 'Next best step')).items[2].click();
 
     expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
     expect(modified[0].content).toContain('status: done');
@@ -172,8 +191,7 @@ describe('KedgeView.render', () => {
     ]);
     await view.render();
 
-    const done = root.buttons().find((b) => b.text === 'Done')!;
-    await done.onclick();
+    await menuIn(sectionEl(root, 'Next best step')).items[2].click();
 
     const written = modified[0].content;
     expect(written).toContain('status: done');
