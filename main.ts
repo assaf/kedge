@@ -1538,9 +1538,6 @@ class KedgeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     new Setting(containerEl)
-      .setName("Kedge")
-      .setHeading();
-    new Setting(containerEl)
       .setName("Letter folder")
       .setDesc("Where sealed letters are stored")
       .addText((text) =>

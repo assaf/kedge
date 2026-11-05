@@ -1159,7 +1159,6 @@ var KedgeSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian.Setting(containerEl).setName("Kedge").setHeading();
     new import_obsidian.Setting(containerEl).setName("Letter folder").setDesc("Where sealed letters are stored").addText(
       (text) => text.setValue(this.plugin.settings.letterFolder).onChange(async (v) => {
         this.plugin.settings.letterFolder = v;
