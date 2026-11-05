@@ -1167,6 +1167,9 @@ var KedgeSettingTab = class extends import_obsidian.PluginSettingTab {
       }
     ];
   }
+  getControlValue(key) {
+    return this.plugin.settings[key];
+  }
   async setControlValue(key, value) {
     const k = key;
     this.plugin.settings[k] = value;

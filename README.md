@@ -31,8 +31,7 @@ Either way, enable it in Settings → Community plugins → Kedge.
 Users can assign their own hotkeys in Obsidian Settings.
 
 ## Changelog
- - 2026-11-05: 1.0.4. no default hotkeys: the four ⌘⇧D/M/N/L bindings are gone, the official lint rule is back on, and the dashboard header stops printing shortcuts. commands still exist; assign your own in Obsidian Settings.
-
+- 2026-11-05: 1.0.4. no default hotkeys: the four ⌘⇧D/M/N/L bindings are gone, the official lint rule is back on, and the dashboard header stops printing shortcuts. commands still exist; assign your own in Obsidian Settings.
 - 2026-11-04: 1.0.1. no console output ships: the three error paths still surface a notice, they just stop writing to devtools. console stays a development tool.
 - 2026-11-04: 1.0.0. an mit license, a versions.json, and an install section that knows about the community store. nothing about the plugin itself changed.
 - 2026-11-03: next steps lose their button row, and the do button with it. edit, snooze and done sit under the ⋯ now; a snoozed step's ⋯ offers unsnooze instead, because state decides and the menu cannot then disagree with the step. unsnooze does the job do had, so nothing has to claim a step any more.

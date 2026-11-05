@@ -1543,6 +1543,10 @@ class KedgeSettingTab extends PluginSettingTab {
     ];
   }
 
+  override getControlValue(key: string): unknown {
+    return this.plugin.settings[key as keyof KedgeSettings];
+  }
+
   override async setControlValue(key: string, value: unknown): Promise<void> {
     const k = key as keyof KedgeSettings;
     this.plugin.settings[k] = value as KedgeSettings[typeof k];
