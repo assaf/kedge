@@ -1085,8 +1085,6 @@ export class KedgeView extends View {
 
   async onOpen(): Promise<void> {
     this.container = this.containerEl;
-    this.container.style.overflow = "auto";
-    this.container.style.height = "100%";
     this.container.empty();
     this.container.addClass("kedge-view");
     await this.plugin.refreshDashboards();
@@ -1467,19 +1465,17 @@ export class KedgeView extends View {
   // ---- note mutations --------------------------------------------------
 
   private async deleteLesson(lesson: Lesson): Promise<void> {
-    if (!window.confirm(`Delete lesson “${lesson.claim}”?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(lesson.path);
     if (file instanceof TFile) {
-      await this.plugin.app.vault.delete(file);
+      await this.plugin.app.fileManager.trashFile(file);
       new Notice("Lesson deleted.");
     }
   }
 
   private async deleteLetter(letter: Letter): Promise<void> {
-    if (!window.confirm(`Delete the letter “${letter.title}”?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(letter.path);
     if (file instanceof TFile) {
-      await this.plugin.app.vault.delete(file);
+      await this.plugin.app.fileManager.trashFile(file);
       new Notice("Letter deleted.");
     }
   }
@@ -1541,8 +1537,9 @@ class KedgeSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Kedge settings" });
-
+    new Setting(containerEl)
+      .setName("Kedge settings")
+      .setHeading();
     new Setting(containerEl)
       .setName("Letter folder")
       .setDesc("Where sealed letters are stored")
@@ -1661,7 +1658,7 @@ export default class KedgePlugin extends Plugin {
       const leaf = this.getTargetLeaf();
       if (!leaf) { new Notice("Kedge: no open leaf to attach to"); return; }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
       new Notice("Kedge failed to open: " + msg);
@@ -1684,7 +1681,7 @@ export default class KedgePlugin extends Plugin {
         : this.app.workspace.getRightLeaf(false);
       if (!leaf) { new Notice("Kedge: no leaf to attach to"); return; }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       new Notice("Kedge failed to open: " + (err as Error).message);
     }

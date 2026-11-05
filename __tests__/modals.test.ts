@@ -51,6 +51,12 @@ function makeCtx() {
       store.push(noteFile(path, content));
       return Promise.resolve();
     },
+    trashFile: (f: TFile) => {
+      deleted.push(f.path);
+      const idx = store.indexOf(f);
+      if (idx >= 0) store.splice(idx, 1);
+      return Promise.resolve();
+    },
     delete: (f: TFile) => {
       deleted.push(f.path);
       const idx = store.indexOf(f);
@@ -67,7 +73,7 @@ function makeCtx() {
     },
   };
   const plugin: any = {
-    app: { vault, workspace: { getLeavesOfType: () => [], getLeaf: () => leaf } },
+    app: { vault, fileManager: vault, workspace: { getLeavesOfType: () => [], getLeaf: () => leaf } },
     settings: { ...DEFAULT_SETTINGS },
   };
   const view: any = new KedgeView({} as any, plugin);

@@ -788,8 +788,6 @@ var KedgeView = class extends import_obsidian.View {
   }
   async onOpen() {
     this.container = this.containerEl;
-    this.container.style.overflow = "auto";
-    this.container.style.height = "100%";
     this.container.empty();
     this.container.addClass("kedge-view");
     await this.plugin.refreshDashboards();
@@ -1105,18 +1103,16 @@ var KedgeView = class extends import_obsidian.View {
   }
   // ---- note mutations --------------------------------------------------
   async deleteLesson(lesson) {
-    if (!window.confirm(`Delete lesson \u201C${lesson.claim}\u201D?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(lesson.path);
     if (file instanceof import_obsidian.TFile) {
-      await this.plugin.app.vault.delete(file);
+      await this.plugin.app.fileManager.trashFile(file);
       new import_obsidian.Notice("Lesson deleted.");
     }
   }
   async deleteLetter(letter) {
-    if (!window.confirm(`Delete the letter \u201C${letter.title}\u201D?`)) return;
     const file = this.plugin.app.vault.getAbstractFileByPath(letter.path);
     if (file instanceof import_obsidian.TFile) {
-      await this.plugin.app.vault.delete(file);
+      await this.plugin.app.fileManager.trashFile(file);
       new import_obsidian.Notice("Letter deleted.");
     }
   }
@@ -1163,7 +1159,7 @@ var KedgeSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Kedge settings" });
+    new import_obsidian.Setting(containerEl).setName("Kedge settings").setHeading();
     new import_obsidian.Setting(containerEl).setName("Letter folder").setDesc("Where sealed letters are stored").addText(
       (text) => text.setValue(this.plugin.settings.letterFolder).onChange(async (v) => {
         this.plugin.settings.letterFolder = v;
@@ -1253,7 +1249,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
         return;
       }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       const msg = err instanceof Error ? `${err.message}
 ${err.stack}` : String(err);
@@ -1277,7 +1273,7 @@ ${err.stack}` : String(err);
         return;
       }
       await leaf.setViewState({ type: VIEW_TYPE_KEDGE, state: {} });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     } catch (err) {
       new import_obsidian.Notice("Kedge failed to open: " + err.message);
     }
