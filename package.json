@@ -7,6 +7,8 @@
     "build": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs",
     "typecheck": "tsc --noEmit",
     "test": "pnpm typecheck && jest",
+    "lint": "eslint main.ts",
+    "lint:repo": "eslint .",
     "smoke": "pnpm build && node scripts/smoke.mjs",
     "dev": "esbuild main.ts --bundle --outfile=main.js --external:obsidian --format=cjs --watch",
     "screenshot": "pnpm build && node scripts/screenshot.mjs"
@@ -14,9 +16,13 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^26.6.6",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "eslint-plugin-obsidianmd": "^0.4.2",
     "jest": "^30.5.2",
     "obsidian": "^1.14.4",
-    "typescript": "^7.0.2"
+    "typescript": "npm:@typescript/typescript6@^6.0.0",
+    "typescript-eslint": "^8.72.1"
   }
 }

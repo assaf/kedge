@@ -97,7 +97,10 @@ function yamlScalar(value) {
 function unquote(raw) {
   if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
     try {
-      return String(JSON.parse(raw));
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean") {
+        return String(parsed);
+      }
     } catch {
     }
   }
@@ -172,7 +175,7 @@ async function ensureFolder(app, path) {
     await app.vault.adapter.mkdir(path);
   }
 }
-async function readAllMarkdown(app) {
+function readAllMarkdown(app) {
   return app.vault.getMarkdownFiles();
 }
 function uniqueNotePath(app, folder, base) {
@@ -187,10 +190,10 @@ function uniqueNotePath(app, folder, base) {
 }
 async function uniqueId(app, folder, base) {
   const taken = /* @__PURE__ */ new Set();
-  for (const f of await readAllMarkdown(app)) {
+  for (const f of readAllMarkdown(app)) {
     if (!f.path.startsWith(folder)) continue;
     const fm = parseFrontmatter(await app.vault.cachedRead(f));
-    taken.add(fm.id ?? idFromTitle(f.basename));
+    taken.add(String(fm.id ?? idFromTitle(f.basename)));
   }
   if (!taken.has(base)) return base;
   let n = 2;
@@ -198,7 +201,7 @@ async function uniqueId(app, folder, base) {
   return `${base}-${n}`;
 }
 async function loadLetters(app, folder) {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const letters = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -206,19 +209,19 @@ async function loadLetters(app, folder) {
     const fm = parseFrontmatter(text);
     if (!fm.status) continue;
     letters.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      title: fm.title ?? f.basename,
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      title: String(fm.title ?? f.basename),
       body: bodyOf(text).trim(),
-      status: fm.status,
-      sealDate: fm.seal_date ?? nowStr(),
-      createdAt: fm.created_at ?? nowStr(),
+      status: fm.status === "delivered" || fm.status === "opened" || fm.status === "sealed" ? fm.status : "sealed",
+      sealDate: String(fm.seal_date ?? nowStr()),
+      createdAt: String(fm.created_at ?? nowStr()),
       path: f.path
     });
   }
   return letters;
 }
 async function loadNextSteps(app, folder) {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const steps = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -226,12 +229,12 @@ async function loadNextSteps(app, folder) {
     const fm = parseFrontmatter(text);
     if (!fm.status) continue;
     steps.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      title: fm.title ?? f.basename,
-      status: fm.status,
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      title: String(fm.title ?? f.basename),
+      status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
       priority: Number(fm.priority ?? 3),
-      snoozeUntil: fm.snooze_until ?? null,
-      createdAt: fm.created_at ?? nowStr(),
+      snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
+      createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
       path: f.path
     });
@@ -239,7 +242,7 @@ async function loadNextSteps(app, folder) {
   return steps;
 }
 async function loadLessons(app, folder) {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const lessons = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -247,11 +250,11 @@ async function loadLessons(app, folder) {
     const fm = parseFrontmatter(text);
     if (!fm.claim) continue;
     lessons.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      claim: fm.claim,
-      category: fm.category ?? "",
-      week: fm.week ?? nowStr(),
-      createdAt: fm.created_at ?? nowStr(),
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      claim: String(fm.claim),
+      category: String(fm.category ?? ""),
+      week: String(fm.week ?? nowStr()),
+      createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
       path: f.path
     });
@@ -343,12 +346,12 @@ function byOrder(a, b) {
   return 0;
 }
 async function applyOrder(app, folder, orderedIds) {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const byId = /* @__PURE__ */ new Map();
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
     const fm = parseFrontmatter(await app.vault.cachedRead(f));
-    byId.set(fm.id ?? idFromTitle(f.basename), f);
+    byId.set(String(fm.id ?? idFromTitle(f.basename)), f);
   }
   for (let i = 0; i < orderedIds.length; i++) {
     const file = byId.get(orderedIds[i]);
@@ -361,12 +364,18 @@ function wireReorder(items, onReorder) {
   const ids = items.map((i) => i.id);
   let dragId = null;
   let hoverId = null;
-  const hasClass = (node, cls) => typeof node?.classList?.contains === "function" ? node.classList.contains(cls) : typeof node?.hasClass === "function" && node.hasClass(cls);
+  const hasClass = (node, cls) => {
+    if (typeof node !== "object" || node === null) return false;
+    const n = node;
+    if (typeof n.classList?.contains === "function") return n.classList.contains(cls);
+    return typeof n.hasClass === "function" && n.hasClass(cls);
+  };
   const closestClass = (node, cls) => {
     let cur = node;
     while (cur) {
       if (hasClass(cur, cls)) return cur;
-      cur = cur.parentNode ?? cur.parent ?? null;
+      const n = cur;
+      cur = n.parentNode ?? n.parent ?? null;
     }
     return null;
   };
@@ -375,13 +384,15 @@ function wireReorder(items, onReorder) {
     while (cur) {
       const found = items.find((i) => i.el === cur);
       if (found) return found;
-      cur = cur.parentNode ?? cur.parent ?? null;
+      const n = cur;
+      cur = n.parentNode ?? n.parent ?? null;
     }
     return null;
   };
   const cardUnder = (evt) => {
     const doc = typeof document === "undefined" ? null : document;
-    const { clientX: x, clientY: y } = evt ?? {};
+    const x = evt?.clientX;
+    const y = evt?.clientY;
     const at = doc && typeof doc.elementFromPoint === "function" && typeof x === "number" && typeof y === "number" ? doc.elementFromPoint(x, y) : null;
     return cardFor(at ?? evt?.target ?? null);
   };
@@ -407,24 +418,26 @@ function wireReorder(items, onReorder) {
     const el = item.el;
     el.addEventListener("pointerdown", (evt) => {
       if (dragId) return;
-      if (typeof evt?.button === "number" && evt.button !== 0) return;
-      const fromGrip = closestClass(evt?.target, "kedge-grip") !== null;
-      if (evt?.pointerType === "touch" && !fromGrip) return;
+      if (typeof evt.button === "number" && evt.button !== 0) return;
+      const fromGrip = closestClass(evt.target, "kedge-grip") !== null;
+      if (evt.pointerType === "touch" && !fromGrip) return;
       if (!fromGrip) {
-        if (closestClass(evt?.target, "kedge-actions")) return;
-        if (evt?.target?.closest?.("input, textarea, select, a, button")) return;
+        if (closestClass(evt.target, "kedge-actions")) return;
+        const target = evt.target;
+        if (target && typeof target.closest === "function" && target.closest("input, textarea, select, a, button")) return;
       }
       dragId = item.id;
       el.addClass("kedge-dragging");
       try {
-        el.setPointerCapture?.(evt.pointerId);
+        const element = el;
+        element.setPointerCapture?.(evt.pointerId);
       } catch {
       }
-      evt?.preventDefault?.();
+      evt.preventDefault();
     });
     el.addEventListener("pointermove", (evt) => {
       if (!dragId) return;
-      evt?.preventDefault?.();
+      evt.preventDefault();
       markTarget(cardUnder(evt));
     });
     el.addEventListener("pointerup", () => {
@@ -847,7 +860,10 @@ var KedgeView = class extends import_obsidian.View {
         run: after(() => this.unsnoozeStep(step.id))
       }
     ] : [
-      { title: "Edit", icon: "pencil", run: () => this.openEditStepModal(step) },
+      { title: "Edit", icon: "pencil", run: () => {
+        this.openEditStepModal(step);
+        return Promise.resolve();
+      } },
       { title: "Snooze", icon: "clock", run: after(() => this.snoozeStep(step.id)) },
       { title: "Done", icon: "check", run: after(() => this.markStepDone(step.id)) }
     ];
@@ -871,7 +887,8 @@ var KedgeView = class extends import_obsidian.View {
     if (typeof manager?.printHotkeyForCommand !== "function") return "";
     const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
     try {
-      return String(manager.printHotkeyForCommand(fullId) ?? "").trim();
+      const rendered = manager.printHotkeyForCommand(fullId);
+      return typeof rendered === "string" || typeof rendered === "number" ? String(rendered).trim() : "";
     } catch {
       return "";
     }
@@ -922,7 +939,7 @@ var KedgeView = class extends import_obsidian.View {
         titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
         card.createDiv({ cls: "kedge-letter-body", text: letter.body });
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", { text: `Written ${letter.createdAt}` });
+        meta.createSpan({ text: `Written ${letter.createdAt}` });
         const actions = card.createDiv({ cls: "kedge-actions" });
         const replyBtn = actions.createEl("button", { cls: "mod-clickable", text: "Reply to past me" });
         const deleteBtn = actions.createEl("button", {
@@ -951,7 +968,10 @@ var KedgeView = class extends import_obsidian.View {
         row.title = `opens ${formatDate(letter.sealDate)} \xB7 written ${letter.createdAt}`;
         row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
         this.actionMenu(row, "Letter actions", [
-          { title: "Edit", icon: "pencil", run: () => this.openEditLetterModal(letter) },
+          { title: "Edit", icon: "pencil", run: () => {
+            this.openEditLetterModal(letter);
+            return Promise.resolve();
+          } },
           {
             title: "Delete",
             icon: "trash",
@@ -986,9 +1006,9 @@ var KedgeView = class extends import_obsidian.View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", { text: `${priorityLabel(step.priority)} priority` });
+        meta.createSpan({ text: `${priorityLabel(step.priority)} priority` });
         if (step.status === "working") {
-          meta.createEl("span", { text: " \xB7 working on it" });
+          meta.createSpan({ text: " \xB7 working on it" });
         }
       }
       wireReorder(dragCards, (ids) => this.reorderSteps(ids));
@@ -1003,7 +1023,7 @@ var KedgeView = class extends import_obsidian.View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", {
+        meta.createSpan({
           text: step.snoozeUntil ? `snoozed until ${step.snoozeUntil}` : "snoozed"
         });
       }
@@ -1044,7 +1064,10 @@ var KedgeView = class extends import_obsidian.View {
       head.createSpan({ cls: "kedge-grip", text: "\u283F" });
       head.createSpan({ cls: "kedge-claim", text: lesson.claim });
       this.actionMenu(head, "Lesson actions", [
-        { title: "Edit", icon: "pencil", run: () => this.openEditLessonModal(lesson) },
+        { title: "Edit", icon: "pencil", run: () => {
+          this.openEditLessonModal(lesson);
+          return Promise.resolve();
+        } },
         {
           title: "Delete",
           icon: "trash",
@@ -1055,8 +1078,8 @@ var KedgeView = class extends import_obsidian.View {
         }
       ]);
       const meta = card.createDiv({ cls: "kedge-meta" });
-      if (lesson.category) meta.createEl("span", { text: lesson.category });
-      if (lesson.week) meta.createEl("span", { text: ` \xB7 ${lesson.week}` });
+      if (lesson.category) meta.createSpan({ text: lesson.category });
+      if (lesson.week) meta.createSpan({ text: ` \xB7 ${lesson.week}` });
     }
     if (!this.lessonQuery.trim()) {
       wireReorder(dragCards, (ids) => this.reorderLessons(ids));
@@ -1123,7 +1146,7 @@ var KedgeView = class extends import_obsidian.View {
    */
   async patchStep(id, patch) {
     const { app, settings } = this.plugin;
-    for (const f of await readAllMarkdown(app)) {
+    for (const f of readAllMarkdown(app)) {
       if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
@@ -1205,7 +1228,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
       id: "write-letter",
       name: "Write letter to future me",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
-      callback: async () => {
+      callback: () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       }
     });
@@ -1213,7 +1236,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
       id: "create-next-step",
       name: "Create next step",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "N" }],
-      callback: async () => {
+      callback: () => {
         new NextStepModal(this.app, this, () => this.refreshDashboards()).open();
       }
     });
@@ -1221,7 +1244,7 @@ var KedgePlugin = class extends import_obsidian.Plugin {
       id: "create-lesson",
       name: "Create lesson",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
-      callback: async () => {
+      callback: () => {
         new LessonModal(this.app, this, () => this.refreshDashboards()).open();
       }
     });

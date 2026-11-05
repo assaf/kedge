@@ -97,10 +97,13 @@ export function priorityFromLabel(label: string): number {
  */
 const FRONTMATTER = /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*)(\r?\n|$)/;
 
-export function parseFrontmatter(text: string): Record<string, any> {
+type FrontmatterValue = string | number;
+type Frontmatter = Record<string, FrontmatterValue>;
+
+export function parseFrontmatter(text: string): Frontmatter {
   const match = FRONTMATTER.exec(text);
   if (!match) return {};
-  const obj: Record<string, any> = {};
+  const obj: Frontmatter = {};
   for (const line of match[2].split(/\r?\n/)) {
     const idx = line.indexOf(":");
     if (idx <= 0) continue; // list items and nested YAML carry no key on their line
@@ -135,7 +138,10 @@ export function yamlScalar(value: string | number): string {
 function unquote(raw: string): string {
   if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
     try {
-      return String(JSON.parse(raw));
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean") {
+        return String(parsed);
+      }
     } catch {
       /* hand-written YAML, not JSON-escaped */
     }
@@ -146,7 +152,7 @@ function unquote(raw: string): string {
   return raw;
 }
 
-export function serializeFrontmatter(obj: Record<string, any>): string {
+export function serializeFrontmatter(obj: Frontmatter): string {
   const lines = Object.entries(obj).map(([key, value]) => `${key}: ${yamlScalar(value)}`);
   return `---\n${lines.join("\n")}\n---\n`;
 }
@@ -243,7 +249,7 @@ async function ensureFolder(app: App, path: string): Promise<void> {
   }
 }
 
-async function readAllMarkdown(app: App): Promise<TFile[]> {
+function readAllMarkdown(app: App): TFile[] {
   return app.vault.getMarkdownFiles();
 }
 
@@ -269,10 +275,10 @@ function uniqueNotePath(app: App, folder: string, base: string): string {
  */
 async function uniqueId(app: App, folder: string, base: string): Promise<string> {
   const taken = new Set<string>();
-  for (const f of await readAllMarkdown(app)) {
+  for (const f of readAllMarkdown(app)) {
     if (!f.path.startsWith(folder)) continue;
     const fm = parseFrontmatter(await app.vault.cachedRead(f));
-    taken.add(fm.id ?? idFromTitle(f.basename));
+    taken.add(String(fm.id ?? idFromTitle(f.basename)));
   }
   if (!taken.has(base)) return base;
   let n = 2;
@@ -281,7 +287,7 @@ async function uniqueId(app: App, folder: string, base: string): Promise<string>
 }
 
 async function loadLetters(app: App, folder: string): Promise<Letter[]> {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const letters: Letter[] = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -289,12 +295,12 @@ async function loadLetters(app: App, folder: string): Promise<Letter[]> {
     const fm = parseFrontmatter(text);
     if (!fm.status) continue;
     letters.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      title: fm.title ?? f.basename,
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      title: String(fm.title ?? f.basename),
       body: bodyOf(text).trim(),
-      status: fm.status,
-      sealDate: fm.seal_date ?? nowStr(),
-      createdAt: fm.created_at ?? nowStr(),
+      status: fm.status === "delivered" || fm.status === "opened" || fm.status === "sealed" ? fm.status : "sealed",
+      sealDate: String(fm.seal_date ?? nowStr()),
+      createdAt: String(fm.created_at ?? nowStr()),
       path: f.path,
     });
   }
@@ -302,7 +308,7 @@ async function loadLetters(app: App, folder: string): Promise<Letter[]> {
 }
 
 async function loadNextSteps(app: App, folder: string): Promise<NextStep[]> {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const steps: NextStep[] = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -310,12 +316,12 @@ async function loadNextSteps(app: App, folder: string): Promise<NextStep[]> {
     const fm = parseFrontmatter(text);
     if (!fm.status) continue;
     steps.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      title: fm.title ?? f.basename,
-      status: fm.status,
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      title: String(fm.title ?? f.basename),
+      status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
       priority: Number(fm.priority ?? 3),
-      snoozeUntil: fm.snooze_until ?? null,
-      createdAt: fm.created_at ?? nowStr(),
+      snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
+      createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
       path: f.path,
     });
@@ -324,7 +330,7 @@ async function loadNextSteps(app: App, folder: string): Promise<NextStep[]> {
 }
 
 async function loadLessons(app: App, folder: string): Promise<Lesson[]> {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const lessons: Lesson[] = [];
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
@@ -332,11 +338,11 @@ async function loadLessons(app: App, folder: string): Promise<Lesson[]> {
     const fm = parseFrontmatter(text);
     if (!fm.claim) continue;
     lessons.push({
-      id: fm.id ?? idFromTitle(f.basename),
-      claim: fm.claim,
-      category: fm.category ?? "",
-      week: fm.week ?? nowStr(),
-      createdAt: fm.created_at ?? nowStr(),
+      id: String(fm.id ?? idFromTitle(f.basename)),
+      claim: String(fm.claim),
+      category: String(fm.category ?? ""),
+      week: String(fm.week ?? nowStr()),
+      createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
       path: f.path,
     });
@@ -460,12 +466,12 @@ export function byOrder(a: { order: number | null }, b: { order: number | null }
 
 /** Writes 1..n into `order` on each note, leaving the rest of the note intact. */
 export async function applyOrder(app: App, folder: string, orderedIds: string[]): Promise<void> {
-  const files = await readAllMarkdown(app);
+  const files = readAllMarkdown(app);
   const byId = new Map<string, TFile>();
   for (const f of files) {
     if (!f.path.startsWith(folder)) continue;
     const fm = parseFrontmatter(await app.vault.cachedRead(f));
-    byId.set(fm.id ?? idFromTitle(f.basename), f);
+    byId.set(String(fm.id ?? idFromTitle(f.basename)), f);
   }
   for (let i = 0; i < orderedIds.length; i++) {
     const file = byId.get(orderedIds[i]);
@@ -503,35 +509,50 @@ export function wireReorder(
   let dragId: string | null = null;
   let hoverId: string | null = null;
 
-  /** Class test that works on a real element and on the test double. */
-  const hasClass = (node: any, cls: string): boolean =>
-    typeof node?.classList?.contains === "function"
-      ? node.classList.contains(cls)
-      : typeof node?.hasClass === "function" && node.hasClass(cls);
+  type DragNode = {
+    classList?: { contains: (cls: string) => boolean };
+    hasClass?: (cls: string) => boolean;
+    parentNode?: unknown;
+    parent?: unknown;
+    closest?: (selector: string) => unknown;
+    setPointerCapture?: (id: number) => void;
+    preventDefault?: () => void;
+  };
 
-  const closestClass = (node: any, cls: string): any => {
-    let cur = node;
+  /** Class test that works on a real element and on the test double. */
+  const hasClass = (node: unknown, cls: string): boolean => {
+    if (typeof node !== "object" || node === null) return false;
+    const n = node as DragNode;
+    if (typeof n.classList?.contains === "function") return n.classList.contains(cls);
+    return typeof n.hasClass === "function" && n.hasClass(cls);
+  };
+
+  const closestClass = (node: unknown, cls: string): unknown => {
+    let cur: unknown = node;
     while (cur) {
       if (hasClass(cur, cls)) return cur;
-      cur = cur.parentNode ?? cur.parent ?? null;
+      const n = cur as DragNode;
+      cur = n.parentNode ?? n.parent ?? null;
     }
     return null;
   };
 
-  const cardFor = (node: any): DraggableCard | null => {
-    let cur = node;
+  const cardFor = (node: unknown): DraggableCard | null => {
+    let cur: unknown = node;
     while (cur) {
-      const found = items.find((i) => i.el === cur);
+      const found = items.find((i) => (i.el as unknown) === cur);
       if (found) return found;
-      cur = cur.parentNode ?? cur.parent ?? null;
+      const n = cur as DragNode;
+      cur = n.parentNode ?? n.parent ?? null;
     }
     return null;
   };
 
   /** What the finger is over right now, capture or no capture. */
-  const cardUnder = (evt: any): DraggableCard | null => {
-    const doc: any = typeof document === "undefined" ? null : document;
-    const { clientX: x, clientY: y } = evt ?? {};
+  const cardUnder = (evt: PointerEvent): DraggableCard | null => {
+    const doc: Document | null = typeof document === "undefined" ? null : document;
+    const x = evt?.clientX;
+    const y = evt?.clientY;
     const at =
       doc && typeof doc.elementFromPoint === "function" && typeof x === "number" && typeof y === "number"
         ? doc.elementFromPoint(x, y)
@@ -562,27 +583,29 @@ export function wireReorder(
 
   for (const item of items) {
     const el = item.el;
-    el.addEventListener("pointerdown", (evt: any) => {
+    el.addEventListener("pointerdown", (evt) => {
       if (dragId) return;
-      if (typeof evt?.button === "number" && evt.button !== 0) return;
-      const fromGrip = closestClass(evt?.target, "kedge-grip") !== null;
-      if (evt?.pointerType === "touch" && !fromGrip) return;
+      if (typeof evt.button === "number" && evt.button !== 0) return;
+      const fromGrip = closestClass(evt.target, "kedge-grip") !== null;
+      if (evt.pointerType === "touch" && !fromGrip) return;
       if (!fromGrip) {
-        if (closestClass(evt?.target, "kedge-actions")) return;
-        if (evt?.target?.closest?.("input, textarea, select, a, button")) return;
+        if (closestClass(evt.target, "kedge-actions")) return;
+        const target = evt.target as DragNode | null;
+        if (target && typeof target.closest === "function" && target.closest("input, textarea, select, a, button")) return;
       }
       dragId = item.id;
       el.addClass("kedge-dragging");
       try {
-        (el as any).setPointerCapture?.(evt.pointerId);
+        const element = el as unknown as DragNode;
+        element.setPointerCapture?.(evt.pointerId);
       } catch {
         /* best effort: elementFromPoint still resolves the target without it */
       }
-      evt?.preventDefault?.();
+      evt.preventDefault();
     });
-    el.addEventListener("pointermove", (evt: any) => {
+    el.addEventListener("pointermove", (evt) => {
       if (!dragId) return;
-      evt?.preventDefault?.();
+      evt.preventDefault();
       markTarget(cardUnder(evt));
     });
     // pointerup commits; pointercancel (the browser took the gesture back, or the
@@ -1116,7 +1139,7 @@ export class KedgeView extends View {
   private actionMenu(
     parent: HTMLElement,
     label: string,
-    items: Array<{ title: string; icon: string; run: () => any }>,
+    items: Array<{ title: string; icon: string; run: () => Promise<void> }>,
   ): HTMLButtonElement {
     const button = parent.createEl("button", { cls: "kedge-menu-button", text: "⋯" });
     button.setAttribute("aria-label", label);
@@ -1148,7 +1171,7 @@ export class KedgeView extends View {
       await fn();
       await this.plugin.refreshDashboards();
     };
-    const items: Array<{ title: string; icon: string; run: () => any }> = isSnoozed(step)
+    const items: Array<{ title: string; icon: string; run: () => Promise<void> }> = isSnoozed(step)
       ? [
           {
             title: "Unsnooze",
@@ -1157,7 +1180,7 @@ export class KedgeView extends View {
           },
         ]
       : [
-          { title: "Edit", icon: "pencil", run: () => this.openEditStepModal(step) },
+          { title: "Edit", icon: "pencil", run: () => { this.openEditStepModal(step); return Promise.resolve(); } },
           { title: "Snooze", icon: "clock", run: after(() => this.snoozeStep(step.id)) },
           { title: "Done", icon: "check", run: after(() => this.markStepDone(step.id)) },
         ];
@@ -1182,11 +1205,15 @@ export class KedgeView extends View {
    * rather than a guess — the header used to print keys nothing was bound to.
    */
   private hotkeyLabel(commandId: string): string {
-    const manager = (this.plugin.app as any)?.hotkeyManager;
+    type HotkeyManager = {
+      printHotkeyForCommand: (id: string) => unknown;
+    };
+    const manager = (this.plugin.app as unknown as { hotkeyManager?: HotkeyManager })?.hotkeyManager;
     if (typeof manager?.printHotkeyForCommand !== "function") return "";
     const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
     try {
-      return String(manager.printHotkeyForCommand(fullId) ?? "").trim();
+      const rendered = manager.printHotkeyForCommand(fullId);
+      return typeof rendered === "string" || typeof rendered === "number" ? String(rendered).trim() : "";
     } catch {
       return "";
     }
@@ -1250,7 +1277,7 @@ export class KedgeView extends View {
         titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
         card.createDiv({ cls: "kedge-letter-body", text: letter.body });
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", { text: `Written ${letter.createdAt}` });
+        meta.createSpan({ text: `Written ${letter.createdAt}` });
         const actions = card.createDiv({ cls: "kedge-actions" });
         const replyBtn = actions.createEl("button", { cls: "mod-clickable", text: "Reply to past me" });
         const deleteBtn = actions.createEl("button", {
@@ -1281,7 +1308,7 @@ export class KedgeView extends View {
         row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
         row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
         this.actionMenu(row, "Letter actions", [
-          { title: "Edit", icon: "pencil", run: () => this.openEditLetterModal(letter) },
+          { title: "Edit", icon: "pencil", run: () => { this.openEditLetterModal(letter); return Promise.resolve(); } },
           {
             title: "Delete",
             icon: "trash",
@@ -1320,9 +1347,9 @@ export class KedgeView extends View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", { text: `${priorityLabel(step.priority)} priority` });
+        meta.createSpan({ text: `${priorityLabel(step.priority)} priority` });
         if (step.status === "working") {
-          meta.createEl("span", { text: " · working on it" });
+          meta.createSpan({ text: " · working on it" });
         }
         // no buttons: the row's actions are all behind the ⋯
       }
@@ -1339,7 +1366,7 @@ export class KedgeView extends View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createEl("span", {
+        meta.createSpan({
           text: step.snoozeUntil ? `snoozed until ${step.snoozeUntil}` : "snoozed",
         });
       }
@@ -1386,7 +1413,7 @@ export class KedgeView extends View {
       head.createSpan({ cls: "kedge-grip", text: "⠿" });
       head.createSpan({ cls: "kedge-claim", text: lesson.claim });
       this.actionMenu(head, "Lesson actions", [
-        { title: "Edit", icon: "pencil", run: () => this.openEditLessonModal(lesson) },
+        { title: "Edit", icon: "pencil", run: () => { this.openEditLessonModal(lesson); return Promise.resolve(); } },
         {
           title: "Delete",
           icon: "trash",
@@ -1397,8 +1424,8 @@ export class KedgeView extends View {
         },
       ]);
       const meta = card.createDiv({ cls: "kedge-meta" });
-      if (lesson.category) meta.createEl("span", { text: lesson.category });
-      if (lesson.week) meta.createEl("span", { text: ` · ${lesson.week}` });
+      if (lesson.category) meta.createSpan({ text: lesson.category });
+      if (lesson.week) meta.createSpan({ text: ` · ${lesson.week}` });
     }
     // reordering only makes sense on the full, unfiltered list
     if (!this.lessonQuery.trim()) {
@@ -1490,7 +1517,7 @@ export class KedgeView extends View {
     patch: Record<string, string | number | null>
   ): Promise<void> {
     const { app, settings } = this.plugin;
-    for (const f of await readAllMarkdown(app)) {
+    for (const f of readAllMarkdown(app)) {
       if (!f.path.startsWith(settings.nextStepFolder)) continue;
       const text = await app.vault.cachedRead(f);
       const fm = parseFrontmatter(text);
@@ -1606,7 +1633,7 @@ export default class KedgePlugin extends Plugin {
       id: "write-letter",
       name: "Write letter to future me",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
-      callback: async () => {
+      callback: () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       },
     });
@@ -1615,7 +1642,7 @@ export default class KedgePlugin extends Plugin {
       id: "create-next-step",
       name: "Create next step",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "N" }],
-      callback: async () => {
+      callback: () => {
         new NextStepModal(this.app, this, () => this.refreshDashboards()).open();
       },
     });
@@ -1624,7 +1651,7 @@ export default class KedgePlugin extends Plugin {
       id: "create-lesson",
       name: "Create lesson",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
-      callback: async () => {
+      callback: () => {
         new LessonModal(this.app, this, () => this.refreshDashboards()).open();
       },
     });
@@ -1685,7 +1712,7 @@ export default class KedgePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<KedgeSettings> | undefined);
   }
 
   async saveSettings(): Promise<void> {
