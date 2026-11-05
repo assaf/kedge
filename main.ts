@@ -1538,7 +1538,7 @@ class KedgeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     new Setting(containerEl)
-      .setName("Kedge settings")
+      .setName("Kedge")
       .setHeading();
     new Setting(containerEl)
       .setName("Letter folder")
