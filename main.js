@@ -869,42 +869,11 @@ var KedgeView = class extends import_obsidian.View {
     ];
     this.actionMenu(parent, "Step actions", items);
   }
-  /** "Open dashboard: ⌘⇧D  ·  New letter: ⌘⇧M  …", live bindings only. */
-  shortcutHints(entries) {
-    return entries.map(([label, id]) => {
-      const keys = this.hotkeyLabel(id);
-      return keys ? `${label}: ${keys}` : "";
-    }).filter(Boolean).join("  \xB7  ");
-  }
-  /**
-   * The command's effective binding, printed by Obsidian itself
-   * (`app.hotkeyManager.printHotkeyForCommand`). That manager is internal and
-   * absent from the public types, so a missing one yields no shortcut at all
-   * rather than a guess — the header used to print keys nothing was bound to.
-   */
-  hotkeyLabel(commandId) {
-    const manager = this.plugin.app?.hotkeyManager;
-    if (typeof manager?.printHotkeyForCommand !== "function") return "";
-    const fullId = `${this.plugin.manifest?.id ?? "kedge"}:${commandId}`;
-    try {
-      const rendered = manager.printHotkeyForCommand(fullId);
-      return typeof rendered === "string" || typeof rendered === "number" ? String(rendered).trim() : "";
-    } catch {
-      return "";
-    }
-  }
   async renderBody() {
     const { app, settings } = this.plugin;
     this.container.empty();
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "\u2693 Kedge" });
-    const hints = this.shortcutHints([
-      ["Open dashboard", "open-dashboard"],
-      ["New letter", "write-letter"],
-      ["New step", "create-next-step"],
-      ["New lesson", "create-lesson"]
-    ]);
-    if (hints) header.createDiv({ cls: "kedge-meta", text: hints });
     const steps = await loadNextSteps(app, settings.nextStepFolder);
     const pending = steps.filter((s) => s.status !== "done" && !isSnoozed(s));
     pending.sort(
@@ -1179,6 +1148,30 @@ var KedgeSettingTab = class extends import_obsidian.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
+  getSettingDefinitions() {
+    return [
+      {
+        name: "Letter folder",
+        desc: "Where sealed letters are stored",
+        control: { type: "text", key: "letterFolder" }
+      },
+      {
+        name: "Next steps folder",
+        desc: "Where next-step notes live",
+        control: { type: "text", key: "nextStepFolder" }
+      },
+      {
+        name: "Lessons folder",
+        desc: "Where one-line lessons live",
+        control: { type: "text", key: "lessonFolder" }
+      }
+    ];
+  }
+  async setControlValue(key, value) {
+    const k = key;
+    this.plugin.settings[k] = value;
+    await this.plugin.saveSettings();
+  }
   display() {
     const { containerEl } = this;
     containerEl.empty();
@@ -1212,7 +1205,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "open-dashboard",
       name: "Open dashboard",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "D" }],
       callback: async () => {
         await this.activateDashboard();
       }
@@ -1227,7 +1219,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "write-letter",
       name: "Write letter to future me",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "M" }],
       callback: () => {
         new LetterModal(this.app, this, () => this.refreshDashboards()).open();
       }
@@ -1235,7 +1226,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "create-next-step",
       name: "Create next step",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "N" }],
       callback: () => {
         new NextStepModal(this.app, this, () => this.refreshDashboards()).open();
       }
@@ -1243,7 +1233,6 @@ var KedgePlugin = class extends import_obsidian.Plugin {
     this.addCommand({
       id: "create-lesson",
       name: "Create lesson",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "L" }],
       callback: () => {
         new LessonModal(this.app, this, () => this.refreshDashboards()).open();
       }

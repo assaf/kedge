@@ -25,9 +25,7 @@ export default defineConfig([
       },
     },
     rules: {
-      // Deliberate shipped shortcuts and UI casing, not lint accidents.
-      "obsidianmd/commands/no-default-hotkeys": "off",
-      "obsidianmd/settings-tab/prefer-setting-definitions": "off",
+      // Deliberate shipped UI casing, not a lint accident.
       "obsidianmd/ui/sentence-case": "off",
     },
   },

@@ -103,41 +103,15 @@ describe('KedgeView.render', () => {
     expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
   });
 
-  test('all bound shortcuts sit on one line in the header', async () => {
+  test('the header carries no shortcut line', async () => {
     const { view, root } = makeView();
-    const keys: Record<string, string> = {
-      'kedge:open-dashboard': '⌘ ⇧ D',
-      'kedge:write-letter': '⌘ ⇧ M',
-      'kedge:create-next-step': '⌘ ⇧ N',
-      'kedge:create-lesson': '⌘ ⇧ L',
-    };
-    (view.plugin.app as any).hotkeyManager = {
-      printHotkeyForCommand: (id: string) => keys[id] ?? '',
-    };
     await view.render();
 
-    const headerMeta = root.children[0].all((e) => e.hasClass('kedge-meta'));
-    expect(headerMeta.map((m) => m.text)).toEqual([
-      'Open dashboard: ⌘ ⇧ D  ·  New letter: ⌘ ⇧ M  ·  New step: ⌘ ⇧ N  ·  New lesson: ⌘ ⇧ L',
-    ]);
-
-    // buttons stay clean: no key hints inside them
+    expect(root.children[0].all((e) => e.hasClass('kedge-meta')).map((e) => e.text)).toEqual([]);
     expect(root.all((e) => e.hasClass('kedge-key'))).toEqual([]);
     expect(root.buttonTexts()).toContain('+ New step');
     expect(root.buttonTexts()).toContain('+ New lesson');
     expect(root.buttonTexts()).toContain('+ New letter');
-  });
-
-  test('unbound commands are left out of the line', async () => {
-    const { view, root } = makeView();
-    (view.plugin.app as any).hotkeyManager = {
-      printHotkeyForCommand: (id: string) =>
-        id === 'kedge:create-lesson' ? '⌘ ⇧ L' : '',
-    };
-    await view.render();
-
-    const headerMeta = root.children[0].all((e) => e.hasClass('kedge-meta'));
-    expect(headerMeta.map((m) => m.text)).toEqual(['New lesson: ⌘ ⇧ L']);
   });
 
   test('offers a New next step button when nothing is pending', async () => {

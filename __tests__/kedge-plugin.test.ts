@@ -10,29 +10,21 @@ beforeEach(() => {
 });
 
 describe('Plugin registration and command registration', () => {
-  test('onload registers kedge commands with hotkeys', async () => {
+  test("onload registers kedge commands without default hotkeys", async () => {
     const plugin = new KedgePlugin() as any;
     plugin.app = {
       vault: {
         adapter: { exists: () => Promise.resolve(true), mkdir: () => Promise.resolve(), modify: () => Promise.resolve(), create: () => Promise.resolve() },
         getMarkdownFiles: () => [],
         getAbstractFileByPath: () => null,
-        cachedRead: () => Promise.resolve(''),
+        cachedRead: () => Promise.resolve(""),
       },
       workspace: new Workspace([]),
     };
     plugin.settings = { ...DEFAULT_SETTINGS };
     await (plugin as any).onload();
 
-    const bound = registeredCommands
-      .filter((c) => c?.hotkeys?.length)
-      .map((c) => [c.id, c.hotkeys[0].key]);
-    expect(Object.fromEntries(bound)).toEqual({
-      'open-dashboard': 'D',
-      'write-letter': 'M',
-      'create-next-step': 'N',
-      'create-lesson': 'L',
-    });
+    expect(registeredCommands.every((c) => !c?.hotkeys?.length)).toBe(true);
 
     // the tab and reload twins were the same call; they must stay deleted
     const ids = registeredCommands.map((c) => c.id);
