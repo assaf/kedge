@@ -269,23 +269,30 @@ describe('Note builders', () => {
   });
 
 
-  test('priorityLevel collapses 1-5 into 3 badge colours', () => {
-    expect(priorityLevel(1)).toBe(1); // highest -> red
-    expect(priorityLevel(2)).toBe(1); // high -> red
-    expect(priorityLevel(3)).toBe(2); // medium -> green
-    expect(priorityLevel(4)).toBe(3); // low -> yellow
-    expect(priorityLevel(5)).toBe(3); // lowest -> yellow
+  test('priorityLevel maps 1-3 directly and collapses legacy 4-5', () => {
+    expect(priorityLevel(1)).toBe(1); // high
+    expect(priorityLevel(2)).toBe(2); // medium
+    expect(priorityLevel(3)).toBe(3); // low
+    expect(priorityLevel(4)).toBe(3); // legacy low
+    expect(priorityLevel(5)).toBe(3); // legacy lowest
     expect(priorityLevel(0)).toBe(1);
     expect(priorityLevel(9)).toBe(3);
     expect(priorityLevel(NaN)).toBe(2);
   });
-  test('priority words and numbers map both ways', () => {
-    expect(PRIORITY_LABELS).toEqual(['highest', 'high', 'medium', 'low', 'lowest']);
-    expect(priorityLabel(1)).toBe('highest');
-    expect(priorityLabel(3)).toBe('medium');
-    expect(priorityLabel(9)).toBe('lowest');
-    for (let n = 1; n <= 5; n++) expect(priorityFromLabel(priorityLabel(n))).toBe(n);
-    expect(priorityFromLabel('nonsense')).toBe(3);
+  test('priority has three labels and maps both ways', () => {
+    expect(PRIORITY_LABELS).toEqual(['high', 'medium', 'low']);
+    expect(priorityLabel(1)).toBe('high');
+    expect(priorityLabel(2)).toBe('medium');
+    expect(priorityLabel(3)).toBe('low');
+    expect(priorityLabel(4)).toBe('low');
+    expect(priorityLabel(5)).toBe('low');
+    expect(priorityLabel(NaN)).toBe('medium');
+    expect(priorityFromLabel(priorityLabel(1))).toBe(1);
+    expect(priorityFromLabel(priorityLabel(2))).toBe(2);
+    expect(priorityFromLabel(priorityLabel(3))).toBe(3);
+    expect(priorityFromLabel('highest')).toBe(1);
+    expect(priorityFromLabel('lowest')).toBe(3);
+    expect(priorityFromLabel('nonsense')).toBe(2);
   });
 
   test('byOrder puts manually ordered notes first and keeps the rest as they were', () => {

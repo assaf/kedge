@@ -286,31 +286,30 @@
   margin-left: 6px;
 }
 
-/* Priority colour-coding for next steps. Backgrounds come from Obsidian's
-   semantic colour variables so they adapt to light/dark themes and custom
-   accent colours; foreground text uses the theme's base colour. */
+/* Priority colour-coding for next steps. Pastel tints over the tag's muted
+   text keep the labels soft but legible in light and dark themes. */
 .kedge-priority {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.4;
 }
 
 .kedge-priority-1 {
-  background: var(--color-red);
-  color: var(--color-base-00);
+  background: color-mix(in srgb, var(--color-red) 22%, transparent);
+  color: var(--text-normal);
 }
 
 .kedge-priority-2 {
-  background: var(--color-green);
-  color: var(--color-base-00);
+  background: color-mix(in srgb, var(--color-green) 22%, transparent);
+  color: var(--text-normal);
 }
 
 .kedge-priority-3 {
-  background: var(--color-yellow);
-  color: var(--color-base-00);
+  background: color-mix(in srgb, var(--color-yellow) 28%, transparent);
+  color: var(--text-normal);
 }
 
 .kedge-modal {

@@ -177,7 +177,7 @@ describe('New next step', () => {
     expect(modal.modalEl.cls).toContain('kedge-modal');
 
     modal.contentEl.ofTag('input')[0].value = 'Call the accountant';
-    click(modal.contentEl, 'highest');
+    click(modal.contentEl, 'high');
     click(modal.contentEl, 'Create');
     await flush();
 
@@ -214,7 +214,7 @@ describe('New next step', () => {
     // the file name was already made unique; the id inside was not
     expect(created[0].content).toContain('id: call-the-dentist-2');
 
-    // the two seeded steps are priority 1 and 2, so the new priority-3 step
+    // the two seeded steps are high and legacy-high, so the new medium step
     // sits third; it carries the same title as the first one
     const cards = cardsIn(section(root, 'Next steps'));
     expect(cards.map(cardTitle)).toEqual(['Call the dentist', 'Renew passport', 'Call the dentist']);
@@ -357,7 +357,7 @@ describe('Editing and reordering next steps', () => {
     expect(input.value).toBe('Call the dentist');
     // priority is offered as words, with the stored number pre-selected
     const active = modal.contentEl.all((e) => e.hasClass('is-active')).map((e) => e.text);
-    expect(active).toEqual(['highest']);
+    expect(active).toEqual(['high']);
 
     input.value = 'Call the dentist back';
     click(modal.contentEl, 'low');
@@ -367,7 +367,7 @@ describe('Editing and reordering next steps', () => {
     expect(modified[0].path).toBe('Kedge/Next-Steps/call-the-dentist.md');
     expect(modified[0].content).toContain('id: call-the-dentist');
     expect(modified[0].content).toContain('title: Call the dentist back');
-    expect(modified[0].content).toContain('priority: 4'); // "low"
+    expect(modified[0].content).toContain('priority: 3'); // "low"
     expect(modified[0].content).toContain('status: pending');
     expect(modified[0].content).toContain('created_at: 2026-11-01');
     // a property the modal never showed is still there afterwards
@@ -383,14 +383,14 @@ describe('Editing and reordering next steps', () => {
     const labels = modal.contentEl
       .all((e) => e.hasClass('kedge-segment'))
       .map((o) => o.text);
-    expect(labels).toEqual(['highest', 'high', 'medium', 'low', 'lowest']);
+    expect(labels).toEqual(['high', 'medium', 'low']);
 
     modal.contentEl.ofTag('input')[0].value = 'Book the flights';
     click(modal.contentEl, 'high');
     click(modal.contentEl, 'Create');
     await flush();
 
-    expect(created[0].content).toContain('priority: 2'); // "high"
+    expect(created[0].content).toContain('priority: 1'); // "high"
   });
 
   test('dropping a step on another persists the new order', async () => {

@@ -65,20 +65,24 @@ function nowStr() {
 function idFromTitle(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
-var PRIORITY_LABELS = ["highest", "high", "medium", "low", "lowest"];
-function priorityLabel(priority) {
-  const index = Math.min(Math.max(Math.round(priority) || 3, 1), 5) - 1;
-  return PRIORITY_LABELS[index];
-}
+var PRIORITY_LABELS = ["high", "medium", "low"];
+var PRIORITY_NUMBERS = {
+  highest: 1,
+  high: 1,
+  medium: 2,
+  low: 3,
+  lowest: 3
+};
 function priorityLevel(priority) {
-  const n = Number.isFinite(priority) ? Math.round(priority) : 3;
-  if (n <= 2) return 1;
-  if (n >= 4) return 3;
-  return 2;
+  if (!Number.isFinite(priority)) return 2;
+  const n = Math.round(priority);
+  return Math.min(Math.max(n, 1), 3);
+}
+function priorityLabel(priority) {
+  return PRIORITY_LABELS[priorityLevel(priority) - 1];
 }
 function priorityFromLabel(label) {
-  const index = PRIORITY_LABELS.indexOf(label);
-  return index === -1 ? 3 : index + 1;
+  return PRIORITY_NUMBERS[label] ?? 2;
 }
 var FRONTMATTER = /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*)(\r?\n|$)/;
 function parseFrontmatter(text) {
@@ -239,7 +243,7 @@ async function loadNextSteps(app, folder) {
       id: String(fm.id ?? idFromTitle(f.basename)),
       title: String(fm.title ?? f.basename),
       status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
-      priority: Number(fm.priority ?? 3),
+      priority: priorityLevel(Number(fm.priority ?? 2)),
       snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
       createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
@@ -581,7 +585,7 @@ var NextStepModal = class extends import_obsidian.Modal {
       contentEl,
       "Priority",
       PRIORITY_LABELS,
-      priorityLabel(this.existing?.priority ?? 3)
+      priorityLabel(this.existing?.priority ?? 2)
     );
     this.titleEl.addEventListener("keydown", (evt) => {
       if (evt.key === "Enter") void this.save();

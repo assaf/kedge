@@ -30,7 +30,7 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 Users can assign their own hotkeys in Obsidian Settings.
 
-- 2026-11-05: 1.0.5. priority badges are colour-coded (high red, medium green, low yellow) and dragging a next step shuffles the list live with a slide animation instead of jumping.
+- 2026-11-06: 1.0.6. priorities are three soft pastels (high, medium, low) and old five-level notes fold into the nearest three.
 - 2026-11-05: 1.0.4. no default hotkeys: the four ⌘⇧D/M/N/L bindings are gone, the official lint rule is back on, and the dashboard header stops printing shortcuts. commands still exist; assign your own in Obsidian Settings.
 - 2026-11-04: 1.0.1. no console output ships: the three error paths still surface a notice, they just stop writing to devtools. console stays a development tool.
 - 2026-11-04: 1.0.0. an mit license, a versions.json, and an install section that knows about the community store. nothing about the plugin itself changed.

@@ -78,24 +78,31 @@ export function idFromTitle(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-/** Priorities are stored as 1-5 but presented as words. */
-export const PRIORITY_LABELS = ["highest", "high", "medium", "low", "lowest"];
+/** Priorities are stored as 1-3 and presented as words. */
+export const PRIORITY_LABELS = ["high", "medium", "low"];
 
-export function priorityLabel(priority: number): string {
-  const index = Math.min(Math.max(Math.round(priority) || 3, 1), 5) - 1;
-  return PRIORITY_LABELS[index];
-}
+const PRIORITY_NUMBERS: Record<string, number> = {
+  highest: 1,
+  high: 1,
+  medium: 2,
+  low: 3,
+  lowest: 3,
+};
+
+
 
 export function priorityLevel(priority: number): number {
-  const n = Number.isFinite(priority) ? Math.round(priority) : 3;
-  if (n <= 2) return 1;
-  if (n >= 4) return 3;
-  return 2;
+  if (!Number.isFinite(priority)) return 2;
+  const n = Math.round(priority);
+  return Math.min(Math.max(n, 1), 3);
+}
+
+export function priorityLabel(priority: number): string {
+  return PRIORITY_LABELS[priorityLevel(priority) - 1];
 }
 
 export function priorityFromLabel(label: string): number {
-  const index = PRIORITY_LABELS.indexOf(label);
-  return index === -1 ? 3 : index + 1;
+  return PRIORITY_NUMBERS[label] ?? 2;
 }
 
 /**
@@ -327,7 +334,7 @@ async function loadNextSteps(app: App, folder: string): Promise<NextStep[]> {
       id: String(fm.id ?? idFromTitle(f.basename)),
       title: String(fm.title ?? f.basename),
       status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
-      priority: Number(fm.priority ?? 3),
+      priority: priorityLevel(Number(fm.priority ?? 2)),
       snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
       createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
@@ -811,7 +818,7 @@ class NextStepModal extends Modal {
       contentEl,
       "Priority",
       PRIORITY_LABELS,
-      priorityLabel(this.existing?.priority ?? 3)
+      priorityLabel(this.existing?.priority ?? 2)
     );
 
     this.titleEl.addEventListener("keydown", (evt) => {
