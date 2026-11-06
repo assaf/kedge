@@ -42,6 +42,7 @@ __export(main_exports, {
   parseFrontmatter: () => parseFrontmatter,
   priorityFromLabel: () => priorityFromLabel,
   priorityLabel: () => priorityLabel,
+  priorityLevel: () => priorityLevel,
   serializeFrontmatter: () => serializeFrontmatter,
   setFrontmatterKeys: () => setFrontmatterKeys,
   wireReorder: () => wireReorder,
@@ -68,6 +69,12 @@ var PRIORITY_LABELS = ["highest", "high", "medium", "low", "lowest"];
 function priorityLabel(priority) {
   const index = Math.min(Math.max(Math.round(priority) || 3, 1), 5) - 1;
   return PRIORITY_LABELS[index];
+}
+function priorityLevel(priority) {
+  const n = Number.isFinite(priority) ? Math.round(priority) : 3;
+  if (n <= 2) return 1;
+  if (n >= 4) return 3;
+  return 2;
 }
 function priorityFromLabel(label) {
   const index = PRIORITY_LABELS.indexOf(label);
@@ -364,6 +371,7 @@ function wireReorder(items, onReorder) {
   const ids = items.map((i) => i.id);
   let dragId = null;
   let hoverId = null;
+  let moved = false;
   const hasClass = (node, cls) => {
     if (typeof node !== "object" || node === null) return false;
     const n = node;
@@ -402,17 +410,63 @@ function wireReorder(items, onReorder) {
       if (item.id === hoverId) item.el.addClass("kedge-drop-target");
       else item.el.removeClass("kedge-drop-target");
     }
+    if (dragId && hoverId && hoverId !== dragId) {
+      const fromIndex = ids.indexOf(dragId);
+      const toIndex = ids.indexOf(hoverId);
+      if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
+        const next = ids.filter((id) => id !== dragId);
+        next.splice(next.indexOf(hoverId), 0, dragId);
+        ids.splice(0, ids.length, ...next);
+        moved = true;
+        applyOrder2(ids);
+      }
+    }
+  };
+  const applyOrder2 = (nextIds) => {
+    const byId = new Map(items.map((i) => [i.id, i.el]));
+    const first = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      const rect = item.el.getBoundingClientRect?.();
+      if (rect) first.set(item.id, rect.top);
+    }
+    const parent = items[0]?.el.parentElement;
+    if (!parent) return;
+    for (const id of nextIds) {
+      const el = byId.get(id);
+      if (el && el.parentElement === parent) parent.appendChild(el);
+    }
+    for (const item of items) {
+      const prev = first.get(item.id);
+      if (prev === void 0) continue;
+      const rect = item.el.getBoundingClientRect?.();
+      if (!rect) continue;
+      const dy = prev - rect.top;
+      if (!dy) continue;
+      const style = item.el.style;
+      if (!style) continue;
+      style.transition = "none";
+      style.transform = `translateY(${dy}px)`;
+      style.willChange = "transform";
+      window.requestAnimationFrame(() => {
+        style.transition = "transform 200ms ease";
+        style.transform = "";
+        window.setTimeout(() => {
+          style.transition = "";
+          style.willChange = "";
+        }, 220);
+      });
+    }
   };
   const settle = (commit) => {
-    const moved = dragId;
-    const target = hoverId;
+    const didMove = moved;
+    const wasDrag = dragId;
     dragId = null;
+    hoverId = null;
+    moved = false;
     markTarget(null);
     for (const item of items) item.el.removeClass("kedge-dragging");
-    if (!commit || !moved || !target || moved === target || !ids.includes(moved)) return;
-    const next = ids.filter((id) => id !== moved);
-    next.splice(next.indexOf(target), 0, moved);
-    void onReorder(next);
+    if (!commit || !wasDrag || !didMove) return;
+    void onReorder(ids.slice());
   };
   for (const item of items) {
     const el = item.el;
@@ -975,7 +1029,10 @@ var KedgeView = class extends import_obsidian.View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createSpan({ text: `${priorityLabel(step.priority)} priority` });
+        meta.createSpan({
+          cls: `kedge-priority kedge-priority-${priorityLevel(step.priority)}`,
+          text: `${priorityLabel(step.priority)} priority`
+        });
         if (step.status === "working") {
           meta.createSpan({ text: " \xB7 working on it" });
         }

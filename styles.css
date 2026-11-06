@@ -285,6 +285,34 @@
   font-weight: 500;
   margin-left: 6px;
 }
+
+/* Priority colour-coding for next steps. Backgrounds come from Obsidian's
+   semantic colour variables so they adapt to light/dark themes and custom
+   accent colours; foreground text uses the theme's base colour. */
+.kedge-priority {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.kedge-priority-1 {
+  background: var(--color-red);
+  color: var(--color-base-00);
+}
+
+.kedge-priority-2 {
+  background: var(--color-green);
+  color: var(--color-base-00);
+}
+
+.kedge-priority-3 {
+  background: var(--color-yellow);
+  color: var(--color-base-00);
+}
+
 .kedge-modal {
   width: min(680px, 92vw);
 }

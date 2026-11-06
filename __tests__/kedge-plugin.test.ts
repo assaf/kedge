@@ -245,6 +245,7 @@ import {
   lessonNote,
   appendReply,
   priorityLabel,
+  priorityLevel,
   priorityFromLabel,
   isSnoozed,
   hasArrived,
@@ -267,6 +268,17 @@ describe('Note builders', () => {
     expect(fm.created_at).toBe('2026-11-02');
   });
 
+
+  test('priorityLevel collapses 1-5 into 3 badge colours', () => {
+    expect(priorityLevel(1)).toBe(1); // highest -> red
+    expect(priorityLevel(2)).toBe(1); // high -> red
+    expect(priorityLevel(3)).toBe(2); // medium -> green
+    expect(priorityLevel(4)).toBe(3); // low -> yellow
+    expect(priorityLevel(5)).toBe(3); // lowest -> yellow
+    expect(priorityLevel(0)).toBe(1);
+    expect(priorityLevel(9)).toBe(3);
+    expect(priorityLevel(NaN)).toBe(2);
+  });
   test('priority words and numbers map both ways', () => {
     expect(PRIORITY_LABELS).toEqual(['highest', 'high', 'medium', 'low', 'lowest']);
     expect(priorityLabel(1)).toBe('highest');

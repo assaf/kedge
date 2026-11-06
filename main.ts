@@ -86,6 +86,13 @@ export function priorityLabel(priority: number): string {
   return PRIORITY_LABELS[index];
 }
 
+export function priorityLevel(priority: number): number {
+  const n = Number.isFinite(priority) ? Math.round(priority) : 3;
+  if (n <= 2) return 1;
+  if (n >= 4) return 3;
+  return 2;
+}
+
 export function priorityFromLabel(label: string): number {
   const index = PRIORITY_LABELS.indexOf(label);
   return index === -1 ? 3 : index + 1;
@@ -509,6 +516,7 @@ export function wireReorder(
   const ids = items.map((i) => i.id);
   let dragId: string | null = null;
   let hoverId: string | null = null;
+  let moved = false;
 
   type DragNode = {
     classList?: { contains: (cls: string) => boolean };
@@ -567,19 +575,68 @@ export function wireReorder(
       if (item.id === hoverId) item.el.addClass("kedge-drop-target");
       else item.el.removeClass("kedge-drop-target");
     }
+    // Live shuffle: when the pointer crosses a card, animate the move immediately.
+    if (dragId && hoverId && hoverId !== dragId) {
+      const fromIndex = ids.indexOf(dragId);
+      const toIndex = ids.indexOf(hoverId);
+      if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
+        const next = ids.filter((id) => id !== dragId);
+        next.splice(next.indexOf(hoverId), 0, dragId);
+        ids.splice(0, ids.length, ...next);
+        moved = true;
+        applyOrder(ids);
+      }
+    }
   };
 
-  /** Drops the drag state and repaints; `commit` decides whether the drop counts. */
+  /** FLIP: record positions, mutate DOM order, invert and settle. */
+  const applyOrder = (nextIds: string[]) => {
+    const byId = new Map(items.map((i) => [i.id, i.el]));
+    const first = new Map<string, number>();
+    for (const item of items) {
+      const rect = item.el.getBoundingClientRect?.();
+      if (rect) first.set(item.id, rect.top);
+    }
+    const parent = items[0]?.el.parentElement;
+    if (!parent) return;
+    for (const id of nextIds) {
+      const el = byId.get(id);
+      if (el && el.parentElement === parent) parent.appendChild(el);
+    }
+    for (const item of items) {
+      const prev = first.get(item.id);
+      if (prev === undefined) continue;
+      const rect = item.el.getBoundingClientRect?.();
+      if (!rect) continue;
+      const dy = prev - rect.top;
+      if (!dy) continue;
+      const style = (item.el as unknown as { style?: { transition?: string; transform?: string; willChange?: string } }).style;
+      if (!style) continue;
+      style.transition = "none";
+      style.transform = `translateY(${dy}px)`;
+      style.willChange = "transform";
+      window.requestAnimationFrame(() => {
+        style.transition = "transform 200ms ease";
+        style.transform = "";
+        window.setTimeout(() => {
+          style.transition = "";
+          style.willChange = "";
+        }, 220);
+      });
+    }
+  };
+
+  /** Drops the drag state. Live shuffle already mutated ids/DOM; just persist. */
   const settle = (commit: boolean) => {
-    const moved = dragId;
-    const target = hoverId;
+    const didMove = moved;
+    const wasDrag = dragId;
     dragId = null;
+    hoverId = null;
+    moved = false;
     markTarget(null);
     for (const item of items) item.el.removeClass("kedge-dragging");
-    if (!commit || !moved || !target || moved === target || !ids.includes(moved)) return;
-    const next = ids.filter((id) => id !== moved);
-    next.splice(next.indexOf(target), 0, moved);
-    void onReorder(next);
+    if (!commit || !wasDrag || !didMove) return;
+    void onReorder(ids.slice());
   };
 
   for (const item of items) {
@@ -1309,7 +1366,10 @@ export class KedgeView extends View {
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
         const meta = card.createDiv({ cls: "kedge-meta" });
-        meta.createSpan({ text: `${priorityLabel(step.priority)} priority` });
+        meta.createSpan({
+          cls: `kedge-priority kedge-priority-${priorityLevel(step.priority)}`,
+          text: `${priorityLabel(step.priority)} priority`,
+        });
         if (step.status === "working") {
           meta.createSpan({ text: " · working on it" });
         }
