@@ -27,6 +27,7 @@ export interface Letter {
 export interface NextStep {
   id: string;
   title: string;
+  details: string;
   status: "pending" | "working" | "snoozed" | "done";
   priority: number;
   snoozeUntil: string | null;
@@ -216,14 +217,26 @@ export function setFrontmatterKeys(
   return `${open}${out.join(eol)}${close}${eol}${text.slice(match[0].length)}`;
 }
 
-/** Frontmatter for a brand new next-step note; `id` is decided by the caller. */
+/**
+ * Frontmatter for a brand new next-step note; `id` is decided by the caller.
+ * `details` becomes the body under the one-line title.
+ */
 export function nextStepNote(
   title: string,
   priority: number,
   id: string,
-  date = nowStr()
+  date = nowStr(),
+  details = ""
 ): string {
-  return serializeFrontmatter({ id, title, status: "pending", priority, created_at: date });
+  const head = serializeFrontmatter({
+    id,
+    title,
+    status: "pending",
+    priority,
+    created_at: date,
+  });
+  const body = details.trim();
+  return body ? `${head}\n${body}\n` : head;
 }
 
 /** Frontmatter for a brand new lesson note; `id` is decided by the caller. */
@@ -255,6 +268,13 @@ function splitNote(text: string): { head: string; body: string } {
   const match = FRONTMATTER.exec(text);
   if (!match) return { head: "", body: text };
   return { head: `${match[1]}${match[2]}${match[3]}\n`, body: text.slice(match[0].length) };
+}
+
+/** Replaces the body after the frontmatter and leaves the block itself alone. */
+function setNoteBody(text: string, body: string): string {
+  const { head } = splitNote(text);
+  const trimmed = body.trim();
+  return trimmed ? `${head}${trimmed}\n` : head;
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {
@@ -333,6 +353,7 @@ async function loadNextSteps(app: App, folder: string): Promise<NextStep[]> {
     steps.push({
       id: String(fm.id ?? idFromTitle(f.basename)),
       title: String(fm.title ?? f.basename),
+      details: bodyOf(text).trim(),
       status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
       priority: priorityLevel(Number(fm.priority ?? 2)),
       snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
@@ -501,6 +522,9 @@ export interface DraggableCard {
   el: HTMLElement;
 }
 
+/** How far a pointer must travel before a press counts as a drag, not a click. */
+const DRAG_THRESHOLD = 5;
+
 /**
  * Reordering by dragging one card onto another. Pointer events instead of HTML5
  * drag-and-drop, because iOS never fires `dragstart` on a plain div, so on the
@@ -515,12 +539,25 @@ export interface DraggableCard {
  * On touch the drag starts only at the grip: the grip carries `touch-action:
  * none`, so the pane does not scroll away under the finger. A mouse can start
  * anywhere on the card except on the card's own controls.
+ *
+ * A press that never travels further than `DRAG_THRESHOLD` is a click, and
+ * `onClick` gets it. That is what lets a card open its editor without stealing
+ * the drag: the two gestures differ by movement, not by target.
  */
 export function wireReorder(
   items: DraggableCard[],
-  onReorder: (orderedIds: string[]) => void | Promise<void>
+  onReorder: (orderedIds: string[]) => void | Promise<void>,
+  onClick?: (item: DraggableCard) => void
 ): void {
   const ids = items.map((i) => i.id);
+  /** The card the pointer went down on: a drag candidate until it moves. */
+  let press: {
+    id: string;
+    x: number;
+    y: number;
+    grip: boolean;
+    touch: boolean;
+  } | null = null;
   let dragId: string | null = null;
   let hoverId: string | null = null;
   let moved = false;
@@ -617,7 +654,7 @@ export function wireReorder(
       if (!rect) continue;
       const dy = prev - rect.top;
       if (!dy) continue;
-      const style = (item.el as unknown as { style?: { transition?: string; transform?: string; willChange?: string } }).style;
+      const style = item.el.style;
       if (!style) continue;
       style.transition = "none";
       style.transform = `translateY(${dy}px)`;
@@ -633,10 +670,11 @@ export function wireReorder(
     }
   };
 
-  /** Drops the drag state. Live shuffle already mutated ids/DOM; just persist. */
+  /** Drops the press and drag state. Live shuffle already mutated ids/DOM; just persist. */
   const settle = (commit: boolean) => {
     const didMove = moved;
-    const wasDrag = dragId;
+    const wasDrag = dragId !== null;
+    press = null;
     dragId = null;
     hoverId = null;
     moved = false;
@@ -649,37 +687,59 @@ export function wireReorder(
   for (const item of items) {
     const el = item.el;
     el.addEventListener("pointerdown", (evt) => {
-      if (dragId) return;
+      if (press || dragId) return;
       if (typeof evt.button === "number" && evt.button !== 0) return;
       const fromGrip = closestClass(evt.target, "kedge-grip") !== null;
-      if (evt.pointerType === "touch" && !fromGrip) return;
       if (!fromGrip) {
         if (closestClass(evt.target, "kedge-actions")) return;
         const target = evt.target as DragNode | null;
         if (target && typeof target.closest === "function" && target.closest("input, textarea, select, a, button")) return;
       }
-      dragId = item.id;
-      el.addClass("kedge-dragging");
-      try {
-        const element = el as unknown as DragNode;
-        element.setPointerCapture?.(evt.pointerId);
-      } catch {
-        /* best effort: elementFromPoint still resolves the target without it */
+      press = {
+        id: item.id,
+        x: typeof evt.clientX === "number" ? evt.clientX : 0,
+        y: typeof evt.clientY === "number" ? evt.clientY : 0,
+        grip: fromGrip,
+        touch: evt.pointerType === "touch",
+      };
+      // A finger on the card body is a tap or a scroll, and the browser owns
+      // the scroll, so only a mouse or a grip press captures the pointer.
+      if (!press.touch || fromGrip) {
+        try {
+          el.setPointerCapture(evt.pointerId);
+        } catch {
+          /* best effort: elementFromPoint still resolves the target without it */
+        }
+        evt.preventDefault();
       }
-      evt.preventDefault();
     });
     el.addEventListener("pointermove", (evt) => {
-      if (!dragId) return;
+      if (!press) return;
+      if (!dragId) {
+        const dx = (typeof evt.clientX === "number" ? evt.clientX : press.x) - press.x;
+        const dy = (typeof evt.clientY === "number" ? evt.clientY : press.y) - press.y;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        // The finger moved on the body: that is a scroll, not a drag or a tap.
+        if (press.touch && !press.grip) {
+          press = null;
+          return;
+        }
+        dragId = press.id;
+        el.addClass("kedge-dragging");
+      }
       evt.preventDefault();
       markTarget(cardUnder(evt));
     });
     // pointerup commits; pointercancel (the browser took the gesture back, or the
     // finger left the screen mid-drag) must never write an order.
     el.addEventListener("pointerup", () => {
-      if (dragId) settle(true);
+      if (!press && !dragId) return;
+      const clicked = press && press.id === item.id && !dragId ? item : null;
+      settle(true);
+      if (clicked && onClick) onClick(clicked);
     });
     el.addEventListener("pointercancel", () => {
-      if (dragId) settle(false);
+      if (press || dragId) settle(false);
     });
   }
 }
@@ -718,13 +778,14 @@ function textField(
 function textareaField(
   parent: HTMLElement,
   label: string,
-  opts: { placeholder?: string; tall?: boolean; hint?: string } = {}
+  opts: { placeholder?: string; value?: string; tall?: boolean; hint?: string } = {}
 ): HTMLTextAreaElement {
   const wrap = fieldWrap(parent, label);
   const ta = wrap.createEl("textarea", {
     cls: opts.tall ? "kedge-textarea kedge-textarea-tall" : "kedge-textarea",
   });
   ta.placeholder = opts.placeholder ?? "";
+  if (opts.value) ta.value = opts.value;
   if (opts.hint) fieldHint(wrap, opts.hint);
   return ta;
 }
@@ -783,6 +844,53 @@ function applyModalClass(modal: Modal): void {
   modal.modalEl.addClass("kedge-modal");
 }
 
+// --------------------------------------------------------------------- confirm modal
+
+/**
+ * A yes/no of our own. `window.confirm` blocks the whole app and looks like a
+ * browser; a destructive action asks in an Obsidian modal instead.
+ */
+class ConfirmModal extends Modal {
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void | Promise<void>;
+
+  constructor(
+    app: App,
+    message: string,
+    confirmLabel: string,
+    onConfirm: () => void | Promise<void>
+  ) {
+    super(app);
+    this.message = message;
+    this.confirmLabel = confirmLabel;
+    this.onConfirm = onConfirm;
+  }
+
+  onOpen(): void {
+    applyModalClass(this);
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Delete note" });
+    contentEl.createEl("p", { cls: "kedge-confirm-message", text: this.message });
+    const row = contentEl.createDiv({ cls: "kedge-modal-actions" });
+    const cancel = row.createEl("button", { cls: "kedge-btn", text: "Cancel" });
+    const confirm = row.createEl("button", {
+      cls: "kedge-btn mod-warning",
+      text: this.confirmLabel,
+    });
+    cancel.onclick = () => this.close();
+    confirm.onclick = async () => {
+      this.close();
+      await this.onConfirm();
+    };
+    cancel.focus();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
 // --------------------------------------------------------------------- next step modal
 
 class NextStepModal extends Modal {
@@ -790,6 +898,7 @@ class NextStepModal extends Modal {
   onDone: () => void | Promise<void>;
   existing?: NextStep;
   titleEl!: HTMLInputElement;
+  detailsEl!: HTMLTextAreaElement;
   priorityChoice!: { getValue: () => string };
 
   constructor(
@@ -813,6 +922,11 @@ class NextStepModal extends Modal {
       placeholder: "What is the next concrete step?",
       hint: "One concrete thing you can do next.",
       value: this.existing?.title,
+    });
+    this.detailsEl = textareaField(contentEl, "Details", {
+      placeholder: "Anything worth remembering about this step",
+      hint: "Optional. Shows on the card.",
+      value: this.existing?.details,
     });
     this.priorityChoice = segmentedField(
       contentEl,
@@ -849,10 +963,12 @@ class NextStepModal extends Modal {
         new Notice("Step file not found.");
         return;
       }
-      // Patch the two fields that changed. Everything else in the note —
-      // status, order, tags, anything Obsidian wrote — stays exactly as it was.
+      // Patch the two frontmatter fields that changed and replace the body
+      // with the details. Everything else in the note — status, order, tags,
+      // anything Obsidian wrote — stays exactly as it was.
       const raw = await app.vault.cachedRead(file);
-      await app.vault.modify(file, setFrontmatterKeys(raw, { title, priority }));
+      const patched = setFrontmatterKeys(raw, { title, priority });
+      await app.vault.modify(file, setNoteBody(patched, this.detailsEl.value));
       new Notice("Next step updated.");
     } else {
       const id = await uniqueId(
@@ -861,7 +977,7 @@ class NextStepModal extends Modal {
         idFromTitle(title) || `step-${nowStr()}`
       );
       const path = uniqueNotePath(app, settings.nextStepFolder, id);
-      await saveNote(app, path, nextStepNote(title, priority, id));
+      await saveNote(app, path, nextStepNote(title, priority, id, undefined, this.detailsEl.value));
       new Notice("Next step created.");
     }
     this.close();
@@ -1259,6 +1375,11 @@ export class KedgeView extends View {
     // header
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "⚓ Kedge" });
+    const tagline = header.createDiv({ cls: "kedge-tagline" });
+    tagline.createEl("em", { text: "noun" });
+    tagline.createSpan({
+      text: ": a small anchor used for warping a vessel; also called a kedge anchor.",
+    });
 
     // ---- Next best step ----
     const steps = await loadNextSteps(app, settings.nextStepFolder);
@@ -1271,11 +1392,20 @@ export class KedgeView extends View {
     this.sectionHead(bestSection, "Next best step");
     if (pending.length > 0) {
       const best = pending[0];
-      const card = bestSection.createDiv({ cls: "kedge-card" });
+      const card = bestSection.createDiv({ cls: "kedge-card kedge-clickable" });
       const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
       head.createSpan({ text: best.title });
       this.stepMenu(head, best);
-      card.createDiv({ cls: "kedge-card-body", text: "Do this now. Everything else can wait." });
+      card.createDiv({
+        cls: best.details ? "kedge-card-body kedge-card-details" : "kedge-card-body",
+        text: best.details || "Do this now. Everything else can wait.",
+      });
+      card.onclick = (evt: MouseEvent) => {
+        // A click on the card's own controls belongs to them, not the card.
+        const target = evt?.target as Element | null;
+        if (target?.closest?.("button, a, input, textarea, select")) return;
+        this.openEditStepModal(best);
+      };
     } else {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
       empty.createDiv({ text: "No pending next steps." });
@@ -1284,7 +1414,7 @@ export class KedgeView extends View {
       newBtn.onclick = () => this.openNewStepModal();
     }
 
-    // ---- Letters: arrived, then scheduled ----
+    // ---- Letters that have arrived ----
     const letters = await loadLetters(app, settings.letterFolder);
     const arrived = letters
       .filter((l) => hasArrived(l))
@@ -1311,45 +1441,15 @@ export class KedgeView extends View {
           text: "Delete",
         });
         replyBtn.onclick = () => this.openReplyModal(letter);
-        deleteBtn.onclick = async () => {
-          await this.deleteLetter(letter);
-          await this.plugin.refreshDashboards();
+        deleteBtn.onclick = () => {
+          this.askDelete(letter.title, async () => {
+            await this.deleteLetter(letter);
+            await this.plugin.refreshDashboards();
+          });
         };
       }
     } else {
       pastSection.createDiv({ cls: "kedge-empty", text: "No letters have arrived yet." });
-    }
-
-    const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
-    const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
-    const newLetterBtn = scheduledHead.createEl("button", {
-      cls: "mod-clickable",
-      text: "+ New letter",
-    });
-    newLetterBtn.onclick = () => this.openNewLetterModal();
-    if (scheduled.length > 0) {
-      for (const letter of scheduled) {
-        const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
-        // full detail stays on hover; the list keeps to one line per letter
-        row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
-        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
-        this.actionMenu(row, "Letter actions", [
-          { title: "Edit", icon: "pencil", run: () => { this.openEditLetterModal(letter); return Promise.resolve(); } },
-          {
-            title: "Delete",
-            icon: "trash",
-            run: async () => {
-              await this.deleteLetter(letter);
-              await this.plugin.refreshDashboards();
-            },
-          },
-        ]);
-      }
-    } else {
-      scheduledSection.createDiv({
-        cls: "kedge-empty",
-        text: "Nothing scheduled. Write a letter and pick when it comes back.",
-      });
     }
 
     // ---- Next steps list ----
@@ -1372,6 +1472,7 @@ export class KedgeView extends View {
         head.createSpan({ cls: "kedge-grip", text: "⠿" });
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
+        if (step.details) card.createDiv({ cls: "kedge-card-details", text: step.details });
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({
           cls: `kedge-priority kedge-priority-${priorityLevel(step.priority)}`,
@@ -1382,7 +1483,14 @@ export class KedgeView extends View {
         }
         // no buttons: the row's actions are all behind the ⋯
       }
-      wireReorder(dragCards, (ids) => this.reorderSteps(ids));
+      wireReorder(
+        dragCards,
+        (ids) => this.reorderSteps(ids),
+        (card) => {
+          const step = ordered.find((s) => s.id === card.id);
+          if (step) this.openEditStepModal(step);
+        },
+      );
     } else if (snoozedSteps.length === 0) {
       listSection.createDiv({ cls: "kedge-empty", text: "Nothing to do." });
     }
@@ -1418,6 +1526,41 @@ export class KedgeView extends View {
       this.lessonQuery = search.value;
       this.renderLessons(lessonList, lessons);
     });
+
+    const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
+    const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
+    const newLetterBtn = scheduledHead.createEl("button", {
+      cls: "mod-clickable",
+      text: "+ New letter",
+    });
+    newLetterBtn.onclick = () => this.openNewLetterModal();
+    if (scheduled.length > 0) {
+      for (const letter of scheduled) {
+        const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
+        // full detail stays on hover; the list keeps to one line per letter
+        row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
+        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        this.actionMenu(row, "Letter actions", [
+          { title: "Edit", icon: "pencil", run: () => { this.openEditLetterModal(letter); return Promise.resolve(); } },
+          {
+            title: "Delete",
+            icon: "trash",
+            run: () => {
+              this.askDelete(letter.title, async () => {
+                await this.deleteLetter(letter);
+                await this.plugin.refreshDashboards();
+              });
+              return Promise.resolve();
+            },
+          },
+        ]);
+      }
+    } else {
+      scheduledSection.createDiv({
+        cls: "kedge-empty",
+        text: "Nothing scheduled. Write a letter and pick when it comes back.",
+      });
+    }
   }
 
   /** Filters in place, so typing costs no focus and no full dashboard render. */
@@ -1446,9 +1589,12 @@ export class KedgeView extends View {
         {
           title: "Delete",
           icon: "trash",
-          run: async () => {
-            await this.deleteLesson(lesson);
-            await this.plugin.refreshDashboards();
+          run: () => {
+            this.askDelete(lesson.claim, async () => {
+              await this.deleteLesson(lesson);
+              await this.plugin.refreshDashboards();
+            });
+            return Promise.resolve();
           },
         },
       ]);
@@ -1519,6 +1665,19 @@ export class KedgeView extends View {
   }
 
   // ---- note mutations --------------------------------------------------
+
+  /**
+   * Trashing is recoverable, but a stray click in a menu should not do it, so
+   * the question comes first and the delete runs from its answer.
+   */
+  private askDelete(what: string, onConfirm: () => Promise<void>): void {
+    new ConfirmModal(
+      this.plugin.app,
+      `Delete “${what}”? The note moves to the trash.`,
+      "Delete",
+      onConfirm
+    ).open();
+  }
 
   private async deleteLesson(lesson: Lesson): Promise<void> {
     const file = this.plugin.app.vault.getAbstractFileByPath(lesson.path);

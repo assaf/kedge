@@ -94,6 +94,12 @@ function click(root: El, text: string): void {
   btn.onclick();
 }
 
+/** Answers the delete confirmation in the modal it opened. */
+async function confirmDelete(label = 'Delete'): Promise<void> {
+  click(lastModal().contentEl, label);
+  await flush();
+}
+
 /** The dashboard section whose heading is `title`. */
 function section(root: El, title: string): El {
   const heading = root.all((e) => e.tag === 'h2' && e.text === title)[0];
@@ -340,9 +346,28 @@ describe('Lessons', () => {
 
     await rowMenu(root).items[1].click();
     await flush();
+    // nothing is gone until the question is answered
+    expect(deleted).toEqual([]);
+    await confirmDelete();
 
     expect(deleted).toEqual(['Kedge/Lessons/ship-it.md']);
     expect(root.all((e) => e.text === 'Ship the boring version first')).toEqual([]);
+  });
+
+  test('Delete asks first, and a cancel keeps the note', async () => {
+    const { view, root, deleted } = makeCtx();
+    await view.render();
+
+    await rowMenu(root).items[1].click();
+    await flush();
+
+    const confirm = lastModal();
+    expect(confirm.contentEl.ofTag('p')[0].text).toContain('Ship the boring version first');
+    click(confirm.contentEl, 'Cancel');
+    await flush();
+
+    expect(deleted).toEqual([]);
+    expect(cardsIn(section(root, 'Lessons'))).toHaveLength(1);
   });
 });
 
@@ -374,6 +399,56 @@ describe('Editing and reordering next steps', () => {
     expect(modified[0].content).toContain('tags:\n  - admin');
   });
 
+  test('Details typed on a step land in the note body and show on the card', async () => {
+    const { view, root, created } = makeCtx();
+    await view.render();
+
+    click(root, '+ New step');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Book the flights';
+    modal.contentEl.ofTag('textarea')[0].value = 'Window seat.\nEarly flight.';
+    click(modal.contentEl, 'Create');
+    await flush();
+
+    expect(created[0].content).toContain('Window seat.\nEarly flight.');
+
+    const card = cardsIn(section(root, 'Next steps')).find(
+      (c) => cardTitle(c) === 'Book the flights'
+    )!;
+    expect(card.all((e) => e.hasClass('kedge-card-details')).map((e) => e.text)).toEqual([
+      'Window seat.\nEarly flight.',
+    ]);
+  });
+
+  test('Edit brings the details back and replaces them without touching the frontmatter', async () => {
+    const { view, root, created, modified } = makeCtx();
+    await view.render();
+
+    click(root, '+ New step');
+    let modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Book the flights';
+    modal.contentEl.ofTag('textarea')[0].value = 'Window seat.';
+    click(modal.contentEl, 'Create');
+    await flush();
+
+    const card = cardsIn(section(root, 'Next steps')).find(
+      (c) => cardTitle(c) === 'Book the flights'
+    )!;
+    await menuIn(card).items[0].click();
+    modal = lastModal();
+    expect(modal.contentEl.ofTag('textarea')[0].value).toBe('Window seat.');
+
+    modal.contentEl.ofTag('textarea')[0].value = 'Aisle seat.\nExtra legroom.';
+    click(modal.contentEl, 'Save');
+    await flush();
+
+    expect(modified[0].path).toBe(created[0].path);
+    expect(modified[0].content).toContain('Aisle seat.\nExtra legroom.');
+    expect(modified[0].content).not.toContain('Window seat.');
+    expect(modified[0].content).toContain('status: pending');
+    expect(modified[0].content).toContain('id: book-the-flights');
+  });
+
   test('a new step can be created with a word priority', async () => {
     const { view, root, created } = makeCtx();
     await view.render();
@@ -402,7 +477,7 @@ describe('Editing and reordering next steps', () => {
 
     // drag "Renew passport" above "Call the dentist"
     pointer(cards[1], 'pointerdown');
-    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[1], 'pointerup');
     await flush();
 
@@ -422,7 +497,7 @@ describe('Editing and reordering next steps', () => {
 
     const cards = cardsIn(section(root, 'Next steps'));
     pointer(cards[0], 'pointerdown');
-    pointer(cards[0], 'pointermove', { target: cards[0] });
+    pointer(cards[0], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[0], 'pointerup');
     await flush();
 
@@ -436,14 +511,14 @@ describe('Editing and reordering next steps', () => {
     const cards = cardsIn(section(root, 'Next steps'));
     // a finger dragging the card body is a scroll, not a reorder
     pointer(cards[1], 'pointerdown', { pointerType: 'touch' });
-    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[1], 'pointerup');
     await flush();
     expect(modified).toEqual([]);
 
     // the grip is the handle: same gesture, from ⠿
     pointer(cards[1], 'pointerdown', { pointerType: 'touch', target: grip(cards[1]) });
-    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[1], 'pointerup');
     await flush();
 
@@ -458,7 +533,7 @@ describe('Editing and reordering next steps', () => {
     const cards = cardsIn(section(root, 'Next steps'));
     // the browser can reclaim a touch gesture mid-drag; that is not a drop
     pointer(cards[1], 'pointerdown', { pointerType: 'touch', target: grip(cards[1]) });
-    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[1], 'pointercancel');
     await flush();
 
@@ -472,11 +547,48 @@ describe('Editing and reordering next steps', () => {
     const cards = cardsIn(section(root, 'Next steps'));
     const caret = cards[1].all((e) => e.hasClass('kedge-menu-button'))[0];
     pointer(cards[1], 'pointerdown', { target: caret });
-    pointer(cards[1], 'pointermove', { target: cards[0] });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
     pointer(cards[1], 'pointerup');
     await flush();
 
     expect(modified).toEqual([]);
+  });
+
+  test('a click opens the step editor; a drag never does', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+    openedModals.length = 0;
+    const cards = cardsIn(section(root, 'Next steps'));
+
+    pointer(cards[0], 'pointerdown');
+    pointer(cards[0], 'pointerup');
+    expect(openedModals).toHaveLength(1);
+    expect(lastModal().contentEl.ofTag('input')[0].value).toBe('Call the dentist');
+
+    openedModals.length = 0;
+    pointer(cards[1], 'pointerdown');
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
+    pointer(cards[1], 'pointerup');
+    await flush();
+    expect(openedModals).toHaveLength(0);
+  });
+
+  test('a tap on a step card opens the editor too, while a scrolling finger does not', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+    openedModals.length = 0;
+    const cards = cardsIn(section(root, 'Next steps'));
+
+    pointer(cards[0], 'pointerdown', { pointerType: 'touch' });
+    pointer(cards[0], 'pointerup');
+    expect(openedModals).toHaveLength(1);
+    lastModal().close();
+
+    openedModals.length = 0;
+    pointer(cards[1], 'pointerdown', { pointerType: 'touch' });
+    pointer(cards[1], 'pointermove', { target: cards[0], clientY: 20 });
+    pointer(cards[1], 'pointerup');
+    expect(openedModals).toHaveLength(0);
   });
 });
 
@@ -499,7 +611,7 @@ describe('Reordering lessons', () => {
     expect(two.map(cardTitle)).toEqual(['Ask for the sale', 'Ship the boring version first']);
 
     pointer(two[1], 'pointerdown');
-    pointer(two[1], 'pointermove', { target: two[0] });
+    pointer(two[1], 'pointermove', { target: two[0], clientY: 20 });
     pointer(two[1], 'pointerup');
     await flush();
 
@@ -643,6 +755,7 @@ describe('Future letters', () => {
 
     await rowMenu(root, 'Scheduled letters').items[1].click();
     await flush();
+    await confirmDelete();
 
     expect(deleted).toEqual(['Kedge/Letters/dear-me-in-a-year.md']);
     expect(section(root, 'Scheduled letters').all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
@@ -724,9 +837,26 @@ describe('Arrived letters', () => {
 
     click(arrived, 'Delete');
     await flush();
+    await confirmDelete();
 
     expect(deleted).toEqual(['Kedge/Letters/dear-future-me.md']);
     expect(section(root, 'From past you').all((e) => e.text === 'Dear future me')).toHaveLength(0);
     expect(section(root, 'From past you').all((e) => e.text === 'No letters have arrived yet.')).toHaveLength(1);
+  });
+});
+
+describe('Section order', () => {
+  test('scheduled letters sit after the lessons, at the bottom', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    expect(root.all((e) => e.tag === 'h2').map((e) => e.text)).toEqual([
+      '⚓ Kedge',
+      'Next best step',
+      'From past you',
+      'Next steps',
+      'Lessons',
+      'Scheduled letters',
+    ]);
   });
 });

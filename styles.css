@@ -40,6 +40,18 @@
   color: var(--interactive-accent);
   font-size: 1rem;
 }
+
+.kedge-tagline {
+  margin: -6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.kedge-tagline em {
+  color: var(--text-normal);
+  margin-right: 2px;
+}
 .kedge-section-head {
   display: flex;
   align-items: center;
@@ -167,6 +179,18 @@
   color: var(--text-muted);
   line-height: 1.55;
   font-size: 0.9rem;
+}
+
+.kedge-card-details {
+  white-space: pre-wrap;
+  color: var(--text-muted);
+  line-height: 1.55;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.kedge-card.kedge-clickable {
+  cursor: pointer;
 }
 .kedge-letter-body {
   white-space: pre-wrap;
@@ -479,6 +503,11 @@
 
 .kedge-modal .kedge-btn-primary:hover {
   background-color: var(--interactive-accent-hover);
+}
+
+.kedge-confirm-message {
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .kedge-empty {

@@ -103,6 +103,19 @@ describe('KedgeView.render', () => {
     expect(root.all((e) => e.text.includes('Ctrl/Cmd')).length).toBe(0);
   });
 
+  test('the header explains the word', async () => {
+    const { view, root } = makeView();
+    await view.render();
+
+    const tagline = root.children[0].all((e) => e.hasClass('kedge-tagline'))[0];
+    // a dictionary entry leads with the part of speech
+    expect(tagline.children[0].tag).toBe('em');
+    expect(tagline.children[0].text).toBe('noun');
+    expect(tagline.children[1].text).toBe(
+      ': a small anchor used for warping a vessel; also called a kedge anchor.'
+    );
+  });
+
   test('the header carries no shortcut line', async () => {
     const { view, root } = makeView();
     await view.render();

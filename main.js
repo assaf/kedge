@@ -157,8 +157,18 @@ ${text}`;
   }
   return `${open}${out.join(eol)}${close}${eol}${text.slice(match[0].length)}`;
 }
-function nextStepNote(title, priority, id, date = nowStr()) {
-  return serializeFrontmatter({ id, title, status: "pending", priority, created_at: date });
+function nextStepNote(title, priority, id, date = nowStr(), details = "") {
+  const head = serializeFrontmatter({
+    id,
+    title,
+    status: "pending",
+    priority,
+    created_at: date
+  });
+  const body = details.trim();
+  return body ? `${head}
+${body}
+` : head;
 }
 function lessonNote(claim, category, id, date = nowStr()) {
   return serializeFrontmatter({ id, claim, category, week: date, created_at: date });
@@ -179,6 +189,12 @@ function splitNote(text) {
   if (!match) return { head: "", body: text };
   return { head: `${match[1]}${match[2]}${match[3]}
 `, body: text.slice(match[0].length) };
+}
+function setNoteBody(text, body) {
+  const { head } = splitNote(text);
+  const trimmed = body.trim();
+  return trimmed ? `${head}${trimmed}
+` : head;
 }
 async function ensureFolder(app, path) {
   const exists = await app.vault.adapter.exists(path);
@@ -242,6 +258,7 @@ async function loadNextSteps(app, folder) {
     steps.push({
       id: String(fm.id ?? idFromTitle(f.basename)),
       title: String(fm.title ?? f.basename),
+      details: bodyOf(text).trim(),
       status: fm.status === "pending" || fm.status === "working" || fm.status === "snoozed" || fm.status === "done" ? fm.status : "pending",
       priority: priorityLevel(Number(fm.priority ?? 2)),
       snoozeUntil: fm.snooze_until == null ? null : String(fm.snooze_until),
@@ -371,8 +388,10 @@ async function applyOrder(app, folder, orderedIds) {
     await app.vault.modify(file, setFrontmatterKeys(text, { order: i + 1 }));
   }
 }
-function wireReorder(items, onReorder) {
+var DRAG_THRESHOLD = 5;
+function wireReorder(items, onReorder, onClick) {
   const ids = items.map((i) => i.id);
+  let press = null;
   let dragId = null;
   let hoverId = null;
   let moved = false;
@@ -463,7 +482,8 @@ function wireReorder(items, onReorder) {
   };
   const settle = (commit) => {
     const didMove = moved;
-    const wasDrag = dragId;
+    const wasDrag = dragId !== null;
+    press = null;
     dragId = null;
     hoverId = null;
     moved = false;
@@ -475,34 +495,53 @@ function wireReorder(items, onReorder) {
   for (const item of items) {
     const el = item.el;
     el.addEventListener("pointerdown", (evt) => {
-      if (dragId) return;
+      if (press || dragId) return;
       if (typeof evt.button === "number" && evt.button !== 0) return;
       const fromGrip = closestClass(evt.target, "kedge-grip") !== null;
-      if (evt.pointerType === "touch" && !fromGrip) return;
       if (!fromGrip) {
         if (closestClass(evt.target, "kedge-actions")) return;
         const target = evt.target;
         if (target && typeof target.closest === "function" && target.closest("input, textarea, select, a, button")) return;
       }
-      dragId = item.id;
-      el.addClass("kedge-dragging");
-      try {
-        const element = el;
-        element.setPointerCapture?.(evt.pointerId);
-      } catch {
+      press = {
+        id: item.id,
+        x: typeof evt.clientX === "number" ? evt.clientX : 0,
+        y: typeof evt.clientY === "number" ? evt.clientY : 0,
+        grip: fromGrip,
+        touch: evt.pointerType === "touch"
+      };
+      if (!press.touch || fromGrip) {
+        try {
+          el.setPointerCapture(evt.pointerId);
+        } catch {
+        }
+        evt.preventDefault();
       }
-      evt.preventDefault();
     });
     el.addEventListener("pointermove", (evt) => {
-      if (!dragId) return;
+      if (!press) return;
+      if (!dragId) {
+        const dx = (typeof evt.clientX === "number" ? evt.clientX : press.x) - press.x;
+        const dy = (typeof evt.clientY === "number" ? evt.clientY : press.y) - press.y;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        if (press.touch && !press.grip) {
+          press = null;
+          return;
+        }
+        dragId = press.id;
+        el.addClass("kedge-dragging");
+      }
       evt.preventDefault();
       markTarget(cardUnder(evt));
     });
     el.addEventListener("pointerup", () => {
-      if (dragId) settle(true);
+      if (!press && !dragId) return;
+      const clicked = press && press.id === item.id && !dragId ? item : null;
+      settle(true);
+      if (clicked && onClick) onClick(clicked);
     });
     el.addEventListener("pointercancel", () => {
-      if (dragId) settle(false);
+      if (press || dragId) settle(false);
     });
   }
 }
@@ -529,6 +568,7 @@ function textareaField(parent, label, opts = {}) {
     cls: opts.tall ? "kedge-textarea kedge-textarea-tall" : "kedge-textarea"
   });
   ta.placeholder = opts.placeholder ?? "";
+  if (opts.value) ta.value = opts.value;
   if (opts.hint) fieldHint(wrap, opts.hint);
   return ta;
 }
@@ -565,6 +605,35 @@ function modalActions(parent, primaryLabel, onPrimary, onCancel) {
 function applyModalClass(modal) {
   modal.modalEl.addClass("kedge-modal");
 }
+var ConfirmModal = class extends import_obsidian.Modal {
+  constructor(app, message, confirmLabel, onConfirm) {
+    super(app);
+    this.message = message;
+    this.confirmLabel = confirmLabel;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    applyModalClass(this);
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Delete note" });
+    contentEl.createEl("p", { cls: "kedge-confirm-message", text: this.message });
+    const row = contentEl.createDiv({ cls: "kedge-modal-actions" });
+    const cancel = row.createEl("button", { cls: "kedge-btn", text: "Cancel" });
+    const confirm = row.createEl("button", {
+      cls: "kedge-btn mod-warning",
+      text: this.confirmLabel
+    });
+    cancel.onclick = () => this.close();
+    confirm.onclick = async () => {
+      this.close();
+      await this.onConfirm();
+    };
+    cancel.focus();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 var NextStepModal = class extends import_obsidian.Modal {
   constructor(app, plugin, onDone, existing) {
     super(app);
@@ -580,6 +649,11 @@ var NextStepModal = class extends import_obsidian.Modal {
       placeholder: "What is the next concrete step?",
       hint: "One concrete thing you can do next.",
       value: this.existing?.title
+    });
+    this.detailsEl = textareaField(contentEl, "Details", {
+      placeholder: "Anything worth remembering about this step",
+      hint: "Optional. Shows on the card.",
+      value: this.existing?.details
     });
     this.priorityChoice = segmentedField(
       contentEl,
@@ -614,7 +688,8 @@ var NextStepModal = class extends import_obsidian.Modal {
         return;
       }
       const raw = await app.vault.cachedRead(file);
-      await app.vault.modify(file, setFrontmatterKeys(raw, { title, priority }));
+      const patched = setFrontmatterKeys(raw, { title, priority });
+      await app.vault.modify(file, setNoteBody(patched, this.detailsEl.value));
       new import_obsidian.Notice("Next step updated.");
     } else {
       const id = await uniqueId(
@@ -623,7 +698,7 @@ var NextStepModal = class extends import_obsidian.Modal {
         idFromTitle(title) || `step-${nowStr()}`
       );
       const path = uniqueNotePath(app, settings.nextStepFolder, id);
-      await saveNote(app, path, nextStepNote(title, priority, id));
+      await saveNote(app, path, nextStepNote(title, priority, id, void 0, this.detailsEl.value));
       new import_obsidian.Notice("Next step created.");
     }
     this.close();
@@ -932,6 +1007,11 @@ var KedgeView = class extends import_obsidian.View {
     this.container.empty();
     const header = this.container.createDiv({ cls: "kedge-section" });
     header.createEl("h2", { text: "\u2693 Kedge" });
+    const tagline = header.createDiv({ cls: "kedge-tagline" });
+    tagline.createEl("em", { text: "noun" });
+    tagline.createSpan({
+      text: ": a small anchor used for warping a vessel; also called a kedge anchor."
+    });
     const steps = await loadNextSteps(app, settings.nextStepFolder);
     const pending = steps.filter((s) => s.status !== "done" && !isSnoozed(s));
     pending.sort(
@@ -941,11 +1021,19 @@ var KedgeView = class extends import_obsidian.View {
     this.sectionHead(bestSection, "Next best step");
     if (pending.length > 0) {
       const best = pending[0];
-      const card = bestSection.createDiv({ cls: "kedge-card" });
+      const card = bestSection.createDiv({ cls: "kedge-card kedge-clickable" });
       const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
       head.createSpan({ text: best.title });
       this.stepMenu(head, best);
-      card.createDiv({ cls: "kedge-card-body", text: "Do this now. Everything else can wait." });
+      card.createDiv({
+        cls: best.details ? "kedge-card-body kedge-card-details" : "kedge-card-body",
+        text: best.details || "Do this now. Everything else can wait."
+      });
+      card.onclick = (evt) => {
+        const target = evt?.target;
+        if (target?.closest?.("button, a, input, textarea, select")) return;
+        this.openEditStepModal(best);
+      };
     } else {
       const empty = bestSection.createDiv({ cls: "kedge-empty" });
       empty.createDiv({ text: "No pending next steps." });
@@ -974,46 +1062,15 @@ var KedgeView = class extends import_obsidian.View {
           text: "Delete"
         });
         replyBtn.onclick = () => this.openReplyModal(letter);
-        deleteBtn.onclick = async () => {
-          await this.deleteLetter(letter);
-          await this.plugin.refreshDashboards();
+        deleteBtn.onclick = () => {
+          this.askDelete(letter.title, async () => {
+            await this.deleteLetter(letter);
+            await this.plugin.refreshDashboards();
+          });
         };
       }
     } else {
       pastSection.createDiv({ cls: "kedge-empty", text: "No letters have arrived yet." });
-    }
-    const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
-    const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
-    const newLetterBtn = scheduledHead.createEl("button", {
-      cls: "mod-clickable",
-      text: "+ New letter"
-    });
-    newLetterBtn.onclick = () => this.openNewLetterModal();
-    if (scheduled.length > 0) {
-      for (const letter of scheduled) {
-        const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
-        row.title = `opens ${formatDate(letter.sealDate)} \xB7 written ${letter.createdAt}`;
-        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
-        this.actionMenu(row, "Letter actions", [
-          { title: "Edit", icon: "pencil", run: () => {
-            this.openEditLetterModal(letter);
-            return Promise.resolve();
-          } },
-          {
-            title: "Delete",
-            icon: "trash",
-            run: async () => {
-              await this.deleteLetter(letter);
-              await this.plugin.refreshDashboards();
-            }
-          }
-        ]);
-      }
-    } else {
-      scheduledSection.createDiv({
-        cls: "kedge-empty",
-        text: "Nothing scheduled. Write a letter and pick when it comes back."
-      });
     }
     const listSection = this.container.createDiv({ cls: "kedge-section" });
     const listActions = this.sectionHead(listSection, "Next steps");
@@ -1032,6 +1089,7 @@ var KedgeView = class extends import_obsidian.View {
         head.createSpan({ cls: "kedge-grip", text: "\u283F" });
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
+        if (step.details) card.createDiv({ cls: "kedge-card-details", text: step.details });
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({
           cls: `kedge-priority kedge-priority-${priorityLevel(step.priority)}`,
@@ -1041,7 +1099,14 @@ var KedgeView = class extends import_obsidian.View {
           meta.createSpan({ text: " \xB7 working on it" });
         }
       }
-      wireReorder(dragCards, (ids) => this.reorderSteps(ids));
+      wireReorder(
+        dragCards,
+        (ids) => this.reorderSteps(ids),
+        (card) => {
+          const step = ordered.find((s) => s.id === card.id);
+          if (step) this.openEditStepModal(step);
+        }
+      );
     } else if (snoozedSteps.length === 0) {
       listSection.createDiv({ cls: "kedge-empty", text: "Nothing to do." });
     }
@@ -1073,6 +1138,42 @@ var KedgeView = class extends import_obsidian.View {
       this.lessonQuery = search.value;
       this.renderLessons(lessonList, lessons);
     });
+    const scheduledSection = this.container.createDiv({ cls: "kedge-section" });
+    const scheduledHead = this.sectionHead(scheduledSection, "Scheduled letters");
+    const newLetterBtn = scheduledHead.createEl("button", {
+      cls: "mod-clickable",
+      text: "+ New letter"
+    });
+    newLetterBtn.onclick = () => this.openNewLetterModal();
+    if (scheduled.length > 0) {
+      for (const letter of scheduled) {
+        const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
+        row.title = `opens ${formatDate(letter.sealDate)} \xB7 written ${letter.createdAt}`;
+        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        this.actionMenu(row, "Letter actions", [
+          { title: "Edit", icon: "pencil", run: () => {
+            this.openEditLetterModal(letter);
+            return Promise.resolve();
+          } },
+          {
+            title: "Delete",
+            icon: "trash",
+            run: () => {
+              this.askDelete(letter.title, async () => {
+                await this.deleteLetter(letter);
+                await this.plugin.refreshDashboards();
+              });
+              return Promise.resolve();
+            }
+          }
+        ]);
+      }
+    } else {
+      scheduledSection.createDiv({
+        cls: "kedge-empty",
+        text: "Nothing scheduled. Write a letter and pick when it comes back."
+      });
+    }
   }
   /** Filters in place, so typing costs no focus and no full dashboard render. */
   renderLessons(container, lessons) {
@@ -1101,9 +1202,12 @@ var KedgeView = class extends import_obsidian.View {
         {
           title: "Delete",
           icon: "trash",
-          run: async () => {
-            await this.deleteLesson(lesson);
-            await this.plugin.refreshDashboards();
+          run: () => {
+            this.askDelete(lesson.claim, async () => {
+              await this.deleteLesson(lesson);
+              await this.plugin.refreshDashboards();
+            });
+            return Promise.resolve();
           }
         }
       ]);
@@ -1155,6 +1259,18 @@ var KedgeView = class extends import_obsidian.View {
     await this.plugin.refreshDashboards();
   }
   // ---- note mutations --------------------------------------------------
+  /**
+   * Trashing is recoverable, but a stray click in a menu should not do it, so
+   * the question comes first and the delete runs from its answer.
+   */
+  askDelete(what, onConfirm) {
+    new ConfirmModal(
+      this.plugin.app,
+      `Delete \u201C${what}\u201D? The note moves to the trash.`,
+      "Delete",
+      onConfirm
+    ).open();
+  }
   async deleteLesson(lesson) {
     const file = this.plugin.app.vault.getAbstractFileByPath(lesson.path);
     if (file instanceof import_obsidian.TFile) {
