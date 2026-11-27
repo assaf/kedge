@@ -122,6 +122,11 @@ function cardTitle(card: El): string {
   return span ? span.text : title.text;
 }
 
+/** All text inside an element, including what the renderer put in children. */
+function textOf(el: El): string {
+  return el.text + el.children.map(textOf).join('');
+}
+
 /** The ⠿ handle that starts a reorder on touch. */
 function grip(card: El): El {
   const handle = card.all((e) => e.hasClass('kedge-grip'))[0];
@@ -415,9 +420,9 @@ describe('Editing and reordering next steps', () => {
     const card = cardsIn(section(root, 'Next steps')).find(
       (c) => cardTitle(c) === 'Book the flights'
     )!;
-    expect(card.all((e) => e.hasClass('kedge-card-details')).map((e) => e.text)).toEqual([
-      'Window seat.\nEarly flight.',
-    ]);
+    const details = card.all((e) => e.hasClass('kedge-card-details'))[0];
+    expect(details.hasClass('markdown-rendered')).toBe(true);
+    expect(details.ofTag('p').map(textOf)).toEqual(['Window seat.', 'Early flight.']);
   });
 
   test('Edit brings the details back and replaces them without touching the frontmatter', async () => {
@@ -447,6 +452,65 @@ describe('Editing and reordering next steps', () => {
     expect(modified[0].content).not.toContain('Window seat.');
     expect(modified[0].content).toContain('status: pending');
     expect(modified[0].content).toContain('id: book-the-flights');
+  });
+
+  test('Details render Markdown: bold, italics, quotes, lists and links', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    click(root, '+ New step');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Read the thing';
+    modal.contentEl.ofTag('textarea')[0].value =
+      '**Bold** and *italic* with a [link](https://example.com)\n\n> quoted\n\n- first\n- second';
+    click(modal.contentEl, 'Create');
+    await flush();
+
+    const card = cardsIn(section(root, 'Next steps')).find(
+      (c) => cardTitle(c) === 'Read the thing'
+    )!;
+    const details = card.all((e) => e.hasClass('kedge-card-details'))[0];
+    expect(details.all((e) => e.tag === 'strong').map((e) => e.text)).toEqual(['Bold']);
+    expect(details.all((e) => e.tag === 'em').map((e) => e.text)).toEqual(['italic']);
+    expect(details.all((e) => e.tag === 'a').map((e) => e.text)).toEqual(['link']);
+    expect(details.all((e) => e.tag === 'blockquote').map(textOf)).toEqual(['quoted']);
+    expect(details.all((e) => e.tag === 'li').map(textOf)).toEqual(['first', 'second']);
+  });
+
+  test('clicking a rendered checkbox flips the Markdown task line', async () => {
+    const { view, root, created, modified } = makeCtx();
+    await view.render();
+
+    click(root, '+ New step');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Pack for the trip';
+    modal.contentEl.ofTag('textarea')[0].value = '- [ ] Passport\n- [x] Charger';
+    click(modal.contentEl, 'Create');
+    await flush();
+
+    const findCard = () =>
+      cardsIn(section(root, 'Next steps')).find((c) => cardTitle(c) === 'Pack for the trip')!;
+    let boxes = findCard().all((e) => e.tag === 'input');
+    expect(boxes.map((b) => b.checked)).toEqual([false, true]);
+
+    openedModals.length = 0;
+    boxes[0].dispatch('click', { stopPropagation() {} });
+    await flush();
+
+    expect(modified[0].path).toBe(created[0].path);
+    expect(modified[0].content).toContain('- [x] Passport');
+    expect(modified[0].content).toContain('- [x] Charger');
+    // ticking a sub-step is not an edit of the step itself
+    expect(openedModals).toEqual([]);
+
+    boxes = findCard().all((e) => e.tag === 'input');
+    expect(boxes.map((b) => b.checked)).toEqual([true, true]);
+
+    // clicking again unchecks only that line
+    boxes[1].dispatch('click', { stopPropagation() {} });
+    await flush();
+    expect(modified[1].content).toContain('- [x] Passport');
+    expect(modified[1].content).toContain('- [ ] Charger');
   });
 
   test('a new step can be created with a word priority', async () => {

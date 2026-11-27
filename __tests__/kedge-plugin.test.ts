@@ -254,6 +254,8 @@ import {
   filterLessons,
   fuzzyScore,
   byOrder,
+  taskLineIndexes,
+  toggleTaskLine,
   PRIORITY_LABELS,
 } from '../main';
 
@@ -397,5 +399,23 @@ describe('Lesson search', () => {
     expect(filterLessons(lessons, 'health').map((l) => l.claim)).toEqual([
       'Slow mornings make better work',
     ]);
+  });
+});
+
+describe('Markdown task lines', () => {
+  test('task items are found in render order, indented and numbered ones too', () => {
+    const body = 'Intro\n- [ ] one\n  - [x] nested\n1. [ ] numbered\n- plain';
+    expect(taskLineIndexes(body)).toEqual([1, 2, 3]);
+  });
+
+  test('a task line inside fenced code is not a checkbox', () => {
+    expect(taskLineIndexes('```\n- [ ] code\n```\n- [ ] real')).toEqual([3]);
+  });
+
+  test('toggle flips only the marker and keeps the rest of the line', () => {
+    expect(toggleTaskLine('- [ ] Passport')).toBe('- [x] Passport');
+    expect(toggleTaskLine('  * [x] Nested')).toBe('  * [ ] Nested');
+    expect(toggleTaskLine('1. [X] Numbered')).toBe('1. [ ] Numbered');
+    expect(toggleTaskLine('- plain')).toBe('- plain');
   });
 });

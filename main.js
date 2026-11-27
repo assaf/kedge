@@ -45,6 +45,8 @@ __export(main_exports, {
   priorityLevel: () => priorityLevel,
   serializeFrontmatter: () => serializeFrontmatter,
   setFrontmatterKeys: () => setFrontmatterKeys,
+  taskLineIndexes: () => taskLineIndexes,
+  toggleTaskLine: () => toggleTaskLine,
   wireReorder: () => wireReorder,
   yamlScalar: () => yamlScalar
 });
@@ -195,6 +197,25 @@ function setNoteBody(text, body) {
   const trimmed = body.trim();
   return trimmed ? `${head}${trimmed}
 ` : head;
+}
+var TASK_LINE = /^(\s*(?:[-*+]|\d+[.)]) \[)([ xX])(\])/;
+function taskLineIndexes(text) {
+  const indexes = [];
+  let fenced = false;
+  text.split(/\r?\n/).forEach((line, index) => {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (!fenced && TASK_LINE.test(line)) indexes.push(index);
+  });
+  return indexes;
+}
+function toggleTaskLine(line) {
+  const match = TASK_LINE.exec(line);
+  if (!match) return line;
+  const mark = match[2] === " " ? "x" : " ";
+  return `${match[1]}${mark}${match[3]}${line.slice(match[0].length)}`;
 }
 async function ensureFolder(app, path) {
   const exists = await app.vault.adapter.exists(path);
@@ -652,7 +673,7 @@ var NextStepModal = class extends import_obsidian.Modal {
     });
     this.detailsEl = textareaField(contentEl, "Details", {
       placeholder: "Anything worth remembering about this step",
-      hint: "Optional. Shows on the card.",
+      hint: "Markdown works: lists, - [ ] sub-steps, **bold**, *italics*, quotes and links.",
       value: this.existing?.details
     });
     this.priorityChoice = segmentedField(
@@ -1002,6 +1023,25 @@ var KedgeView = class extends import_obsidian.View {
     ];
     this.actionMenu(parent, "Step actions", items);
   }
+  /**
+   * Renders the step's Markdown in place. Each rendered checkbox is wired back
+   * to the `- [ ]` line it came from, so ticking one edits the note and the
+   * next render shows the new state.
+   */
+  async renderDetails(step, el) {
+    const { app } = this.plugin;
+    el.addClass("markdown-rendered");
+    await import_obsidian.MarkdownRenderer.render(app, step.details, el, step.path, this);
+    const boxes = Array.from(
+      el.querySelectorAll("input.task-list-item-checkbox")
+    );
+    boxes.forEach((box, index) => {
+      box.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        void this.toggleTask(step, index);
+      });
+    });
+  }
   async renderBody() {
     const { app, settings } = this.plugin;
     this.container.empty();
@@ -1025,10 +1065,15 @@ var KedgeView = class extends import_obsidian.View {
       const head = card.createDiv({ cls: "kedge-card-title kedge-card-head" });
       head.createSpan({ text: best.title });
       this.stepMenu(head, best);
-      card.createDiv({
-        cls: best.details ? "kedge-card-body kedge-card-details" : "kedge-card-body",
-        text: best.details || "Do this now. Everything else can wait."
-      });
+      if (best.details) {
+        const details = card.createDiv({ cls: "kedge-card-body kedge-card-details" });
+        await this.renderDetails(best, details);
+      } else {
+        card.createDiv({
+          cls: "kedge-card-body",
+          text: "Do this now. Everything else can wait."
+        });
+      }
       card.onclick = (evt) => {
         const target = evt?.target;
         if (target?.closest?.("button, a, input, textarea, select")) return;
@@ -1089,7 +1134,10 @@ var KedgeView = class extends import_obsidian.View {
         head.createSpan({ cls: "kedge-grip", text: "\u283F" });
         head.createSpan({ text: step.title });
         this.stepMenu(head, step);
-        if (step.details) card.createDiv({ cls: "kedge-card-details", text: step.details });
+        if (step.details) {
+          const details = card.createDiv({ cls: "kedge-card-details" });
+          await this.renderDetails(step, details);
+        }
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({
           cls: `kedge-priority kedge-priority-${priorityLevel(step.priority)}`,
@@ -1284,6 +1332,23 @@ var KedgeView = class extends import_obsidian.View {
       await this.plugin.app.fileManager.trashFile(file);
       new import_obsidian.Notice("Letter deleted.");
     }
+  }
+  /** Writes one rendered checkbox back to its task line in the note. */
+  async toggleTask(step, index) {
+    const { app } = this.plugin;
+    const file = app.vault.getAbstractFileByPath(step.path);
+    if (!(file instanceof import_obsidian.TFile)) {
+      new import_obsidian.Notice("Step file not found.");
+      return;
+    }
+    const raw = await app.vault.cachedRead(file);
+    const body = bodyOf(raw);
+    const lines = body.split(/\r?\n/);
+    const line = taskLineIndexes(body)[index];
+    if (line === void 0) return;
+    lines[line] = toggleTaskLine(lines[line]);
+    await app.vault.modify(file, setNoteBody(raw, lines.join("\n")));
+    await this.plugin.refreshDashboards();
   }
   /**
    * Patches one next step by id and leaves the rest of its note alone — a Done

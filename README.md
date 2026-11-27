@@ -30,6 +30,7 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 Users can assign their own hotkeys in Obsidian Settings.
 
+- 2026-11-26: 1.1.0. step details are Markdown: bold, italics, quotes, lists and links render. `- [ ]` sub-steps show as checkboxes, and ticking one rewrites that line in the note.
 - 2026-11-10: 1.0.7. the dashboard title carries a line on what a kedge anchor is. a next step has a details area under its one-line title, shown on the card. clicking a step opens it for editing; a drag still reorders, because movement decides between the two. deletes ask first in a confirm dialog. scheduled letters moved below the lessons.
 - 2026-11-06: 1.0.6. priorities are three soft pastels (high, medium, low) and old five-level notes fold into the nearest three.
 - 2026-11-05: 1.0.5. priority badges are colour-coded (high red, medium green, low yellow) and dragging a next step shuffles the list live with a slide animation instead of jumping.

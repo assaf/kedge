@@ -26,6 +26,8 @@ export class El {
   value = '';
   onclick: any = null;
   disabled = false;
+  type = '';
+  checked = false;
   constructor(tag = 'div', opts: any = {}) {
     this.tag = tag;
     if (opts.cls) this.cls = String(opts.cls).split(' ');
@@ -78,6 +80,17 @@ export class El {
   buttons(): El[] { return this.all((e) => e.tag === 'button'); }
   buttonTexts(): string[] { return this.buttons().map((b) => b.text); }
   ofTag(tag: string): El[] { return this.all((e) => e.tag === tag); }
+
+  /** Matches `tag`, `tag.class` — the selectors the plugin actually asks for. */
+  querySelectorAll<T extends El = El>(selector: string): T[] {
+    const matchers = selector.split(',').map((part) => part.trim()).filter(Boolean);
+    const matches = (el: El, matcher: string): boolean => {
+      const parsed = /^([a-z0-9]+)(?:\.([\w-]+))?$/i.exec(matcher);
+      if (!parsed) return false;
+      return el.tag === parsed[1] && (!parsed[2] || el.hasClass(parsed[2]));
+    };
+    return this.all((e) => matchers.some((m) => matches(e, m))) as T[];
+  }
 }
 
 export class TFile {
@@ -308,3 +321,91 @@ export class Component {}
 export class ItemView extends View {}
 
 export const VIEW_TYPE_KEDGE = "kedge-dashboard";
+
+const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+
+function renderInline(parent: El, text: string): void {
+  let last = 0;
+  for (const match of text.matchAll(INLINE)) {
+    const index = match.index ?? 0;
+    if (index > last) parent.createSpan({ text: text.slice(last, index) });
+    const token = match[0];
+    if (token.startsWith('**')) {
+      parent.createEl('strong', { text: token.slice(2, -2) });
+    } else if (token.startsWith('`')) {
+      parent.createEl('code', { text: token.slice(1, -1) });
+    } else if (token.startsWith('[')) {
+      const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)!;
+      const a = parent.createEl('a', { text: link[1] });
+      a.setAttribute('href', link[2]);
+    } else {
+      parent.createEl('em', { text: token.slice(1, -1) });
+    }
+    last = index + token.length;
+  }
+  if (last < text.length) parent.createSpan({ text: text.slice(last) });
+}
+
+/** Renders the block subset the dashboard uses, so tests can click a checkbox. */
+export function renderMarkdown(el: El, markdown: string): void {
+  let list: El | null = null;
+  let listKind = '';
+  const openList = (tag: 'ul' | 'ol', kind: string): El => {
+    if (!list || listKind !== kind) {
+      list = el.createEl(tag, { cls: kind === 'task' ? 'contains-task-list' : undefined });
+      listKind = kind;
+    }
+    return list;
+  };
+  for (const line of markdown.split(/\r?\n/)) {
+    if (!line.trim()) {
+      list = null;
+      listKind = '';
+      continue;
+    }
+    const task = /^\s*[-*+] \[([ xX])\] (.*)$/.exec(line);
+    if (task) {
+      const li = openList('ul', 'task').createEl('li', { cls: 'task-list-item' });
+      const box = li.createEl('input', { cls: 'task-list-item-checkbox' });
+      box.type = 'checkbox';
+      box.checked = task[1] !== ' ';
+      renderInline(li, task[2]);
+      continue;
+    }
+    const bullet = /^\s*[-*+] (.*)$/.exec(line);
+    if (bullet) {
+      renderInline(openList('ul', 'ul').createEl('li'), bullet[1]);
+      continue;
+    }
+    const ordered = /^\s*\d+[.)] (.*)$/.exec(line);
+    if (ordered) {
+      renderInline(openList('ol', 'ol').createEl('li'), ordered[1]);
+      continue;
+    }
+    list = null;
+    listKind = '';
+    const quote = /^>\s?(.*)$/.exec(line);
+    if (quote) {
+      renderInline(el.createEl('blockquote'), quote[1]);
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      renderInline(el.createEl(`h${heading[1].length}`), heading[2]);
+      continue;
+    }
+    renderInline(el.createEl('p'), line);
+  }
+}
+
+export class MarkdownRenderer {
+  static async render(
+    _app: any,
+    markdown: string,
+    el: El,
+    _sourcePath: string,
+    _component: any
+  ): Promise<void> {
+    renderMarkdown(el, markdown);
+  }
+}
