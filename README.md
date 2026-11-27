@@ -30,6 +30,8 @@ Either way, enable it in Settings → Community plugins → Kedge.
 
 Users can assign their own hotkeys in Obsidian Settings.
 
+- 2026-11-26: 1.2.1. external links in rendered Markdown carry Obsidian's link icon, so they read as links on the dashboard too.
+- 2026-11-26: 1.2.0. letters render their body as Markdown, scheduled ones included, and lessons gain a Markdown details area that renders under the claim. ticking a checkbox in either rewrites that note's line.
 - 2026-11-26: 1.1.0. step details are Markdown: bold, italics, quotes, lists and links render. `- [ ]` sub-steps show as checkboxes, and ticking one rewrites that line in the note.
 - 2026-11-10: 1.0.7. the dashboard title carries a line on what a kedge anchor is. a next step has a details area under its one-line title, shown on the card. clicking a step opens it for editing; a drag still reorders, because movement decides between the two. deletes ask first in a confirm dialog. scheduled letters moved below the lessons.
 - 2026-11-06: 1.0.6. priorities are three soft pastels (high, medium, low) and old five-level notes fold into the nearest three.

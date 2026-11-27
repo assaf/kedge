@@ -28,6 +28,7 @@ export class El {
   disabled = false;
   type = '';
   checked = false;
+  attrs: Record<string, string> = {};
   constructor(tag = 'div', opts: any = {}) {
     this.tag = tag;
     if (opts.cls) this.cls = String(opts.cls).split(' ');
@@ -51,7 +52,8 @@ export class El {
   appendChild(c: El) { c.parent = this; this.children.push(c); return c; }
   focus() { /* no-op */ }
   setText(text: string) { this.text = String(text); this.children = []; }
-  setAttribute() { /* no-op */ }
+  setAttribute(name: string, value: string) { this.attrs[name] = String(value); }
+  getAttribute(name: string) { return this.attrs[name] ?? null; }
   addEventListener(type: string, cb: (evt?: any) => any) {
     (this.listeners[type] ||= []).push(cb);
   }
@@ -91,6 +93,12 @@ export class El {
     };
     return this.all((e) => matchers.some((m) => matches(e, m))) as T[];
   }
+}
+
+/** Stand-in for Obsidian's icon helper: a sized svg carrying the icon name. */
+export function setIcon(el: El, icon: string): void {
+  const svg = el.createEl('svg', { cls: 'svg-icon' });
+  svg.setAttribute('data-icon', icon);
 }
 
 export class TFile {
@@ -338,6 +346,7 @@ function renderInline(parent: El, text: string): void {
       const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)!;
       const a = parent.createEl('a', { text: link[1] });
       a.setAttribute('href', link[2]);
+      if (/^(https?:\/\/|mailto:)/.test(link[2])) a.addClass('external-link');
     } else {
       parent.createEl('em', { text: token.slice(1, -1) });
     }

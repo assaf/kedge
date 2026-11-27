@@ -12,6 +12,7 @@ import {
   Notice,
   Menu,
   MarkdownRenderer,
+  setIcon,
 } from "obsidian";
 
 // --------------------------------------------------------------------- types
@@ -41,6 +42,7 @@ export interface Lesson {
   id: string;
   claim: string;
   category: string;
+  body: string;
   week: string;
   createdAt: string;
   order: number | null;
@@ -240,14 +242,20 @@ export function nextStepNote(
   return body ? `${head}\n${body}\n` : head;
 }
 
-/** Frontmatter for a brand new lesson note; `id` is decided by the caller. */
+/**
+ * Frontmatter for a brand new lesson note; `id` is decided by the caller.
+ * `details` becomes the body under the one-line claim.
+ */
 export function lessonNote(
   claim: string,
   category: string,
   id: string,
-  date = nowStr()
+  date = nowStr(),
+  details = ""
 ): string {
-  return serializeFrontmatter({ id, claim, category, week: date, created_at: date });
+  const head = serializeFrontmatter({ id, claim, category, week: date, created_at: date });
+  const body = details.trim();
+  return body ? `${head}\n${body}\n` : head;
 }
 
 /** Append a dated reply section to a letter note. */
@@ -407,6 +415,7 @@ async function loadLessons(app: App, folder: string): Promise<Lesson[]> {
       id: String(fm.id ?? idFromTitle(f.basename)),
       claim: String(fm.claim),
       category: String(fm.category ?? ""),
+      body: bodyOf(text).trim(),
       week: String(fm.week ?? nowStr()),
       createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
@@ -1027,6 +1036,7 @@ class LessonModal extends Modal {
   existing?: Lesson;
   claimEl!: HTMLInputElement;
   categoryEl!: HTMLInputElement;
+  detailsEl!: HTMLTextAreaElement;
 
   constructor(
     app: App,
@@ -1055,7 +1065,11 @@ class LessonModal extends Modal {
       hint: "Optional.",
       value: this.existing?.category,
     });
-
+    this.detailsEl = textareaField(contentEl, "Details", {
+      placeholder: "Anything worth remembering about this lesson",
+      hint: "Markdown works: lists, - [ ] steps, **bold**, *italics*, quotes and links.",
+      value: this.existing?.body,
+    });
     this.claimEl.addEventListener("keydown", (evt) => {
       if (evt.key === "Enter") void this.save();
     });
@@ -1085,7 +1099,8 @@ class LessonModal extends Modal {
         return;
       }
       const raw = await app.vault.cachedRead(file);
-      await app.vault.modify(file, setFrontmatterKeys(raw, { claim, category }));
+      const patched = setFrontmatterKeys(raw, { claim, category });
+      await app.vault.modify(file, setNoteBody(patched, this.detailsEl.value));
       new Notice("Lesson updated.");
     } else {
       const id = await uniqueId(
@@ -1094,7 +1109,7 @@ class LessonModal extends Modal {
         idFromTitle(claim) || `lesson-${nowStr()}`
       );
       const path = uniqueNotePath(app, settings.lessonFolder, id);
-      await saveNote(app, path, lessonNote(claim, category, id));
+      await saveNote(app, path, lessonNote(claim, category, id, undefined, this.detailsEl.value));
       new Notice("Lesson saved.");
     }
     this.close();
@@ -1399,21 +1414,25 @@ export class KedgeView extends View {
   }
 
   /**
-   * Renders the step's Markdown in place. Each rendered checkbox is wired back
-   * to the `- [ ]` line it came from, so ticking one edits the note and the
-   * next render shows the new state.
+   * Renders a note's Markdown in place. Each rendered checkbox is wired back to
+   * the `- [ ]` line it came from, so ticking one edits the note and the next
+   * render shows the new state.
    */
-  private async renderDetails(step: NextStep, el: HTMLElement): Promise<void> {
-    const { app } = this.plugin;
+  private async renderNoteMarkdown(path: string, markdown: string, el: HTMLElement): Promise<void> {
     el.addClass("markdown-rendered");
-    await MarkdownRenderer.render(app, step.details, el, step.path, this);
+    await MarkdownRenderer.render(this.plugin.app, markdown, el, path, this);
+    // A bare accent-coloured word does not read as a link in a note embedded in
+    // the dashboard; Obsidian already tags external ones, so mark those.
+    for (const link of Array.from(el.querySelectorAll<HTMLAnchorElement>("a.external-link"))) {
+      setIcon(link.createSpan({ cls: "kedge-link-icon" }), "external-link");
+    }
     const boxes = Array.from(
       el.querySelectorAll<HTMLInputElement>("input.task-list-item-checkbox")
     );
     boxes.forEach((box, index) => {
       box.addEventListener("click", (evt) => {
         evt.stopPropagation();
-        void this.toggleTask(step, index);
+        void this.toggleNoteTask(path, index);
       });
     });
   }
@@ -1448,7 +1467,7 @@ export class KedgeView extends View {
       this.stepMenu(head, best);
       if (best.details) {
         const details = card.createDiv({ cls: "kedge-card-body kedge-card-details" });
-        await this.renderDetails(best, details);
+        await this.renderNoteMarkdown(best.path, best.details, details);
       } else {
         card.createDiv({
           cls: "kedge-card-body",
@@ -1486,7 +1505,10 @@ export class KedgeView extends View {
         const titleDiv = card.createDiv({ cls: "kedge-card-title" });
         titleDiv.createSpan({ text: letter.title });
         titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
-        card.createDiv({ cls: "kedge-letter-body", text: letter.body });
+        if (letter.body) {
+          const body = card.createDiv({ cls: "kedge-letter-body" });
+          await this.renderNoteMarkdown(letter.path, letter.body, body);
+        }
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({ text: `Written ${letter.createdAt}` });
         const actions = card.createDiv({ cls: "kedge-actions" });
@@ -1529,7 +1551,7 @@ export class KedgeView extends View {
         this.stepMenu(head, step);
         if (step.details) {
           const details = card.createDiv({ cls: "kedge-card-details" });
-          await this.renderDetails(step, details);
+          await this.renderNoteMarkdown(step.path, step.details, details);
         }
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({
@@ -1595,9 +1617,14 @@ export class KedgeView extends View {
     if (scheduled.length > 0) {
       for (const letter of scheduled) {
         const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
-        // full detail stays on hover; the list keeps to one line per letter
+        const main = row.createDiv({ cls: "kedge-letter-row-main" });
+        // full detail stays on hover; the body renders below the title
         row.title = `opens ${formatDate(letter.sealDate)} · written ${letter.createdAt}`;
-        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        main.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        if (letter.body) {
+          const body = main.createDiv({ cls: "kedge-letter-row-body kedge-letter-body" });
+          await this.renderNoteMarkdown(letter.path, letter.body, body);
+        }
         this.actionMenu(row, "Letter actions", [
           { title: "Edit", icon: "pencil", run: () => { this.openEditLetterModal(letter); return Promise.resolve(); } },
           {
@@ -1656,6 +1683,10 @@ export class KedgeView extends View {
           },
         },
       ]);
+      if (lesson.body) {
+        const body = card.createDiv({ cls: "kedge-card-details" });
+        void this.renderNoteMarkdown(lesson.path, lesson.body, body);
+      }
       const meta = card.createDiv({ cls: "kedge-meta" });
       if (lesson.category) meta.createSpan({ text: lesson.category });
       if (lesson.week) meta.createSpan({ text: ` · ${lesson.week}` });
@@ -1754,11 +1785,11 @@ export class KedgeView extends View {
   }
 
   /** Writes one rendered checkbox back to its task line in the note. */
-  private async toggleTask(step: NextStep, index: number): Promise<void> {
+  private async toggleNoteTask(path: string, index: number): Promise<void> {
     const { app } = this.plugin;
-    const file = app.vault.getAbstractFileByPath(step.path);
+    const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) {
-      new Notice("Step file not found.");
+      new Notice("Note file not found.");
       return;
     }
     const raw = await app.vault.cachedRead(file);

@@ -172,8 +172,12 @@ function nextStepNote(title, priority, id, date = nowStr(), details = "") {
 ${body}
 ` : head;
 }
-function lessonNote(claim, category, id, date = nowStr()) {
-  return serializeFrontmatter({ id, claim, category, week: date, created_at: date });
+function lessonNote(claim, category, id, date = nowStr(), details = "") {
+  const head = serializeFrontmatter({ id, claim, category, week: date, created_at: date });
+  const body = details.trim();
+  return body ? `${head}
+${body}
+` : head;
 }
 function appendReply(raw, text, date = nowStr()) {
   const sep = raw.endsWith("\n") ? "\n" : "\n\n";
@@ -302,6 +306,7 @@ async function loadLessons(app, folder) {
       id: String(fm.id ?? idFromTitle(f.basename)),
       claim: String(fm.claim),
       category: String(fm.category ?? ""),
+      body: bodyOf(text).trim(),
       week: String(fm.week ?? nowStr()),
       createdAt: String(fm.created_at ?? nowStr()),
       order: fm.order != null ? Number(fm.order) : null,
@@ -750,6 +755,11 @@ var LessonModal = class extends import_obsidian.Modal {
       hint: "Optional.",
       value: this.existing?.category
     });
+    this.detailsEl = textareaField(contentEl, "Details", {
+      placeholder: "Anything worth remembering about this lesson",
+      hint: "Markdown works: lists, - [ ] steps, **bold**, *italics*, quotes and links.",
+      value: this.existing?.body
+    });
     this.claimEl.addEventListener("keydown", (evt) => {
       if (evt.key === "Enter") void this.save();
     });
@@ -777,7 +787,8 @@ var LessonModal = class extends import_obsidian.Modal {
         return;
       }
       const raw = await app.vault.cachedRead(file);
-      await app.vault.modify(file, setFrontmatterKeys(raw, { claim, category }));
+      const patched = setFrontmatterKeys(raw, { claim, category });
+      await app.vault.modify(file, setNoteBody(patched, this.detailsEl.value));
       new import_obsidian.Notice("Lesson updated.");
     } else {
       const id = await uniqueId(
@@ -786,7 +797,7 @@ var LessonModal = class extends import_obsidian.Modal {
         idFromTitle(claim) || `lesson-${nowStr()}`
       );
       const path = uniqueNotePath(app, settings.lessonFolder, id);
-      await saveNote(app, path, lessonNote(claim, category, id));
+      await saveNote(app, path, lessonNote(claim, category, id, void 0, this.detailsEl.value));
       new import_obsidian.Notice("Lesson saved.");
     }
     this.close();
@@ -1024,21 +1035,23 @@ var KedgeView = class extends import_obsidian.View {
     this.actionMenu(parent, "Step actions", items);
   }
   /**
-   * Renders the step's Markdown in place. Each rendered checkbox is wired back
-   * to the `- [ ]` line it came from, so ticking one edits the note and the
-   * next render shows the new state.
+   * Renders a note's Markdown in place. Each rendered checkbox is wired back to
+   * the `- [ ]` line it came from, so ticking one edits the note and the next
+   * render shows the new state.
    */
-  async renderDetails(step, el) {
-    const { app } = this.plugin;
+  async renderNoteMarkdown(path, markdown, el) {
     el.addClass("markdown-rendered");
-    await import_obsidian.MarkdownRenderer.render(app, step.details, el, step.path, this);
+    await import_obsidian.MarkdownRenderer.render(this.plugin.app, markdown, el, path, this);
+    for (const link of Array.from(el.querySelectorAll("a.external-link"))) {
+      (0, import_obsidian.setIcon)(link.createSpan({ cls: "kedge-link-icon" }), "external-link");
+    }
     const boxes = Array.from(
       el.querySelectorAll("input.task-list-item-checkbox")
     );
     boxes.forEach((box, index) => {
       box.addEventListener("click", (evt) => {
         evt.stopPropagation();
-        void this.toggleTask(step, index);
+        void this.toggleNoteTask(path, index);
       });
     });
   }
@@ -1067,7 +1080,7 @@ var KedgeView = class extends import_obsidian.View {
       this.stepMenu(head, best);
       if (best.details) {
         const details = card.createDiv({ cls: "kedge-card-body kedge-card-details" });
-        await this.renderDetails(best, details);
+        await this.renderNoteMarkdown(best.path, best.details, details);
       } else {
         card.createDiv({
           cls: "kedge-card-body",
@@ -1097,7 +1110,10 @@ var KedgeView = class extends import_obsidian.View {
         const titleDiv = card.createDiv({ cls: "kedge-card-title" });
         titleDiv.createSpan({ text: letter.title });
         titleDiv.createSpan({ cls: "seal-badge", text: `sealed ${formatDate(letter.sealDate)}` });
-        card.createDiv({ cls: "kedge-letter-body", text: letter.body });
+        if (letter.body) {
+          const body = card.createDiv({ cls: "kedge-letter-body" });
+          await this.renderNoteMarkdown(letter.path, letter.body, body);
+        }
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({ text: `Written ${letter.createdAt}` });
         const actions = card.createDiv({ cls: "kedge-actions" });
@@ -1136,7 +1152,7 @@ var KedgeView = class extends import_obsidian.View {
         this.stepMenu(head, step);
         if (step.details) {
           const details = card.createDiv({ cls: "kedge-card-details" });
-          await this.renderDetails(step, details);
+          await this.renderNoteMarkdown(step.path, step.details, details);
         }
         const meta = card.createDiv({ cls: "kedge-meta" });
         meta.createSpan({
@@ -1196,8 +1212,13 @@ var KedgeView = class extends import_obsidian.View {
     if (scheduled.length > 0) {
       for (const letter of scheduled) {
         const row = scheduledSection.createDiv({ cls: "kedge-letter-row" });
+        const main = row.createDiv({ cls: "kedge-letter-row-main" });
         row.title = `opens ${formatDate(letter.sealDate)} \xB7 written ${letter.createdAt}`;
-        row.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        main.createDiv({ cls: "kedge-letter-row-title", text: letter.title });
+        if (letter.body) {
+          const body = main.createDiv({ cls: "kedge-letter-row-body kedge-letter-body" });
+          await this.renderNoteMarkdown(letter.path, letter.body, body);
+        }
         this.actionMenu(row, "Letter actions", [
           { title: "Edit", icon: "pencil", run: () => {
             this.openEditLetterModal(letter);
@@ -1259,6 +1280,10 @@ var KedgeView = class extends import_obsidian.View {
           }
         }
       ]);
+      if (lesson.body) {
+        const body = card.createDiv({ cls: "kedge-card-details" });
+        void this.renderNoteMarkdown(lesson.path, lesson.body, body);
+      }
       const meta = card.createDiv({ cls: "kedge-meta" });
       if (lesson.category) meta.createSpan({ text: lesson.category });
       if (lesson.week) meta.createSpan({ text: ` \xB7 ${lesson.week}` });
@@ -1334,11 +1359,11 @@ var KedgeView = class extends import_obsidian.View {
     }
   }
   /** Writes one rendered checkbox back to its task line in the note. */
-  async toggleTask(step, index) {
+  async toggleNoteTask(path, index) {
     const { app } = this.plugin;
-    const file = app.vault.getAbstractFileByPath(step.path);
+    const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof import_obsidian.TFile)) {
-      new import_obsidian.Notice("Step file not found.");
+      new import_obsidian.Notice("Note file not found.");
       return;
     }
     const raw = await app.vault.cachedRead(file);

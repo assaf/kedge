@@ -333,6 +333,9 @@ describe('Lessons', () => {
     expect(inputs[0].value).toBe('Ship the boring version first'); // prefilled
     expect(inputs[1].value).toBe('product');
 
+    const details = modal.contentEl.ofTag('textarea')[0];
+    expect(details.value).toBe('');
+    details.value = 'Reworded by hand.';
     inputs[0].value = 'Ship the smallest thing first';
     click(modal.contentEl, 'Save');
     await flush();
@@ -341,8 +344,40 @@ describe('Lessons', () => {
     expect(modified[0].path).toBe('Kedge/Lessons/ship-it.md');
     expect(modified[0].content).toContain('id: ship-it');
     expect(modified[0].content).toContain('claim: Ship the smallest thing first');
+    expect(modified[0].content).toContain('Reworded by hand.');
     expect(modified[0].content).toContain('week: 2026-10-20');
     expect(modified[0].content).toContain('created_at: 2026-10-20');
+  });
+
+  test('a lesson body renders Markdown and its checkboxes edit the note', async () => {
+    const { view, root, created, modified } = makeCtx();
+    await view.render();
+
+    click(root, '+ New lesson');
+    const modal = lastModal();
+    const inputs = modal.contentEl.ofTag('input');
+    inputs[0].value = 'Ask for more';
+    inputs[1].value = 'sales';
+    modal.contentEl.ofTag('textarea')[0].value = '**Why** it works\n\n- [ ] practice';
+    click(modal.contentEl, 'Create');
+    await flush();
+
+    expect(created[0].content).toContain('**Why** it works');
+    const card = cardsIn(section(root, 'Lessons')).find((c) => cardTitle(c) === 'Ask for more')!;
+    expect(card.all((e) => e.tag === 'strong').map((e) => e.text)).toEqual(['Why']);
+
+    const box = card.all((e) => e.tag === 'input')[0];
+    expect(box.checked).toBe(false);
+    box.dispatch('click', { stopPropagation() {} });
+    await flush();
+
+    expect(modified[0].path).toBe(created[0].path);
+    expect(modified[0].content).toContain('- [x] practice');
+    expect(modified[0].content).toContain('claim: Ask for more');
+    expect(modified[0].content).toContain('category: sales');
+
+    const after = cardsIn(section(root, 'Lessons')).find((c) => cardTitle(c) === 'Ask for more')!;
+    expect(after.all((e) => e.tag === 'input')[0].checked).toBe(true);
   });
 
   test('Delete from the menu removes the lesson note and re-renders without it', async () => {
@@ -749,7 +784,7 @@ describe('Snoozed next steps', () => {
 
 
 describe('Future letters', () => {
-  test('scheduled letters are one-line rows, separate from arrived ones', async () => {
+  test('scheduled letters show a rendered body under the title', async () => {
     const { view, root } = makeCtx();
     await view.render();
 
@@ -759,10 +794,11 @@ describe('Future letters', () => {
     expect(rows).toHaveLength(1);
     const row = rows[0];
 
-    // title only: no body, no meta, no card chrome
     const title = row.all((e) => e.hasClass('kedge-letter-row-title'));
     expect(title.map((e) => e.text)).toEqual(['Dear me in a year']);
-    expect(row.all((e) => e.hasClass('kedge-letter-body'))).toEqual([]);
+    const body = row.all((e) => e.hasClass('kedge-letter-row-body'));
+    expect(body.map(textOf)).toEqual(['Did the stall make its first thousand?']);
+    expect(body[0].hasClass('markdown-rendered')).toBe(true);
     expect(row.all((e) => e.hasClass('kedge-meta'))).toEqual([]);
     expect(row.all((e) => e.hasClass('kedge-card'))).toEqual([]);
 
@@ -776,6 +812,35 @@ describe('Future letters', () => {
     const arrived = section(root, 'From past you');
     expect(arrived.all((e) => e.text === 'Dear me in a year')).toHaveLength(0);
     expect(arrived.all((e) => e.text === 'Dear future me').length).toBeGreaterThan(0);
+  });
+
+  test('a scheduled letter body renders Markdown and its checkboxes edit the note', async () => {
+    const { view, root, created, modified } = makeCtx();
+    await view.render();
+
+    click(section(root, 'Scheduled letters'), '+ New letter');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Dear future me, again';
+    modal.contentEl.ofTag('input')[1].value = '2099-02-02';
+    modal.contentEl.ofTag('textarea')[0].value = '**Bold** start\n\n- [ ] one';
+    click(modal.contentEl, 'Seal it');
+    await flush();
+
+    const row = section(root, 'Scheduled letters')
+      .all((e) => e.hasClass('kedge-letter-row'))
+      .find((r) =>
+        r.all((e) => e.hasClass('kedge-letter-row-title')).some((t) => t.text === 'Dear future me, again')
+      )!;
+    expect(row.all((e) => e.tag === 'strong').map((e) => e.text)).toEqual(['Bold']);
+
+    const box = row.all((e) => e.tag === 'input')[0];
+    expect(box.checked).toBe(false);
+    box.dispatch('click', { stopPropagation() {} });
+    await flush();
+
+    expect(modified[0].path).toBe(created[0].path);
+    expect(modified[0].content).toContain('- [x] one');
+    expect(modified[0].content).toContain('id: dear-future-me-again');
   });
 
   test('the ⋯ on a scheduled letter opens Edit and Delete', async () => {
@@ -906,6 +971,33 @@ describe('Arrived letters', () => {
     expect(deleted).toEqual(['Kedge/Letters/dear-future-me.md']);
     expect(section(root, 'From past you').all((e) => e.text === 'Dear future me')).toHaveLength(0);
     expect(section(root, 'From past you').all((e) => e.text === 'No letters have arrived yet.')).toHaveLength(1);
+  });
+
+  test('renders the letter body as Markdown', async () => {
+    const { view, root } = makeCtx();
+    await view.render();
+
+    click(section(root, 'Scheduled letters'), '+ New letter');
+    const modal = lastModal();
+    modal.contentEl.ofTag('input')[0].value = 'Dear past me';
+    modal.contentEl.ofTag('input')[1].value = '2026-01-01';
+    modal.contentEl.ofTag('textarea')[0].value =
+      '**Rest** more and [walk](https://example.com).\n\n> slow down';
+    click(modal.contentEl, 'Seal it');
+    await flush();
+
+    const card = section(root, 'From past you')
+      .all((e) => e.hasClass('kedge-card'))
+      .find((c) => c.all((e) => e.text === 'Dear past me').length > 0)!;
+    expect(card.all((e) => e.tag === 'strong').map((e) => e.text)).toEqual(['Rest']);
+    expect(card.all((e) => e.tag === 'a').map((e) => e.text)).toEqual(['walk']);
+    const link = card.all((e) => e.tag === 'a')[0];
+    expect(link.text).toBe('walk');
+    expect(link.all((e) => e.hasClass('kedge-link-icon')).length).toBe(1);
+    expect(link.all((e) => e.tag === 'svg').map((e) => e.getAttribute('data-icon'))).toEqual([
+      'external-link',
+    ]);
+    expect(card.all((e) => e.tag === 'blockquote').map(textOf)).toEqual(['slow down']);
   });
 });
 

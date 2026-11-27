@@ -128,7 +128,7 @@
 
 .kedge-letter-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 8px 2px;
   border-bottom: 1px solid var(--background-modifier-border);
@@ -147,6 +147,44 @@
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text-normal);
+}
+
+.kedge-letter-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kedge-letter-row-body {
+  margin-top: 2px;
+}
+
+/* Letters render Markdown on the dashboard; the reply preview stays plain. */
+.kedge-letter-body.markdown-rendered {
+  white-space: normal;
+}
+
+.kedge-letter-body.markdown-rendered > :first-child {
+  margin-top: 0;
+}
+
+.kedge-letter-body.markdown-rendered > :last-child {
+  margin-bottom: 0;
+}
+
+
+.kedge-link-icon {
+  display: inline-flex;
+  margin-left: 4px;
+  vertical-align: -0.15em;
+}
+
+.kedge-link-icon svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+.kedge-letter-body input.task-list-item-checkbox {
+  cursor: pointer;
+  margin-right: 6px;
 }
 
 .kedge-card.kedge-snoozed:hover {
